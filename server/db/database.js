@@ -5,19 +5,24 @@ const bcrypt = require('bcryptjs');
 let db;
 let isNative = false;
 
-try {
-  const Database = require('better-sqlite3');
-  const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
-  const dbDir = isVercel ? '/tmp' : __dirname;
-  const dbPath = path.join(dbDir, 'balaji_chitfund.db');
-  db = new Database(dbPath, { verbose: null });
-  db.pragma('foreign_keys = ON');
-  isNative = true;
-  console.log('Using native better-sqlite3 database engine.');
-} catch (error) {
-  console.warn('Native better-sqlite3 not available, enabling in-memory JS relational engine:', error.message);
-  
-  // Pure JavaScript Relational DB Emulation Engine for Serverless Vercel Lambda
+// Force JS engine on Vercel to guarantee 0 native C++ crashes
+const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+if (!isVercel) {
+  try {
+    const Database = require('better-sqlite3');
+    const dbPath = path.join(__dirname, 'balaji_chitfund.db');
+    db = new Database(dbPath, { verbose: null });
+    db.pragma('foreign_keys = ON');
+    isNative = true;
+  } catch (error) {
+    isNative = false;
+  }
+}
+
+if (!isNative) {
+  console.log('Running Serverless JS Relational Engine for Vercel Environment.');
+
   const memoryStore = {
     users: [],
     members: [],
@@ -43,7 +48,8 @@ try {
       return {
         get: (...params) => {
           if (cleanSql.includes('FROM users WHERE email = ?')) {
-            return memoryStore.users.find(u => u.email.toLowerCase() === String(params[0]).toLowerCase());
+            const em = String(params[0] || '').trim().toLowerCase();
+            return memoryStore.users.find(u => u.email.toLowerCase() === em);
           }
           if (cleanSql.includes('FROM users WHERE id = ?')) {
             return memoryStore.users.find(u => u.id === Number(params[0]));
@@ -104,8 +110,14 @@ try {
           if (cleanSql.includes('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND member_id = ?')) {
             return memoryStore.chit_enrollments.find(e => e.scheme_id === Number(params[0]) && e.member_id === Number(params[1]));
           }
+          if (cleanSql.includes('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND ticket_number = ?')) {
+            return memoryStore.chit_enrollments.find(e => e.scheme_id === Number(params[0]) && e.ticket_number === Number(params[1]));
+          }
           if (cleanSql.includes('SELECT id FROM auctions WHERE scheme_id = ? AND month_number = ?')) {
             return memoryStore.auctions.find(a => a.scheme_id === Number(params[0]) && a.month_number === Number(params[1]));
+          }
+          if (cleanSql.includes('SELECT id, month_number FROM auctions WHERE scheme_id = ? AND winning_member_id = ?')) {
+            return memoryStore.auctions.find(a => a.scheme_id === Number(params[0]) && a.winning_member_id === Number(params[1]));
           }
           if (cleanSql.includes('SELECT * FROM monthly_payments WHERE id = ?')) {
             return memoryStore.monthly_payments.find(p => p.id === Number(params[0]));
@@ -113,14 +125,21 @@ try {
           if (cleanSql.includes('SELECT * FROM monthly_payments WHERE scheme_id = ? AND member_id = ? AND month_number = ?')) {
             return memoryStore.monthly_payments.find(p => p.scheme_id === Number(params[0]) && p.member_id === Number(params[1]) && p.month_number === Number(params[2]));
           }
+          if (cleanSql.includes('SELECT id FROM members WHERE email = ?')) {
+            return memoryStore.members.find(m => m.email.toLowerCase() === String(params[0]).toLowerCase());
+          }
+          if (cleanSql.includes('SELECT id FROM members WHERE aadhaar_no = ?')) {
+            return memoryStore.members.find(m => m.aadhaar_no === String(params[0]));
+          }
           return null;
         },
         all: (...params) => {
           if (cleanSql.includes('FROM members')) {
-            return memoryStore.members;
+            let list = [...memoryStore.members];
+            return list;
           }
           if (cleanSql.includes('FROM chit_schemes')) {
-            return memoryStore.chit_schemes;
+            return [...memoryStore.chit_schemes];
           }
           if (cleanSql.includes('FROM auctions')) {
             return memoryStore.auctions.map(a => {
@@ -168,7 +187,7 @@ try {
             });
           }
           if (cleanSql.includes('FROM audit_logs')) {
-            return memoryStore.audit_logs;
+            return [...memoryStore.audit_logs];
           }
           if (cleanSql.includes('FROM kyc_documents')) {
             return memoryStore.kyc_documents.filter(doc => doc.member_id === Number(params[0]));
@@ -210,6 +229,15 @@ try {
             });
             return { lastInsertRowid: id };
           }
+          if (cleanSql.includes('INSERT INTO kyc_documents')) {
+            const id = autoId.kyc_documents++;
+            memoryStore.kyc_documents.push({
+              id, member_id: params[0], document_type: params[1], file_name: params[2],
+              original_name: params[3], file_path: params[4], mime_type: params[5],
+              file_size: params[6], uploaded_at: params[7]
+            });
+            return { lastInsertRowid: id };
+          }
           if (cleanSql.includes('INSERT INTO chit_schemes')) {
             const id = autoId.chit_schemes++;
             memoryStore.chit_schemes.unshift({
@@ -236,6 +264,12 @@ try {
             return { lastInsertRowid: id };
           }
           if (cleanSql.includes('INSERT INTO monthly_payments')) {
+            const existing = memoryStore.monthly_payments.find(p => p.scheme_id === Number(params[0]) && p.member_id === Number(params[1]) && p.month_number === Number(params[2]));
+            if (existing) {
+              existing.dividend_applied = params[4];
+              existing.net_amount_due = params[5];
+              return { lastInsertRowid: existing.id };
+            }
             const id = autoId.monthly_payments++;
             memoryStore.monthly_payments.unshift({
               id, scheme_id: params[0], member_id: params[1], month_number: params[2],
@@ -270,6 +304,25 @@ try {
             }
             return { changes: 1 };
           }
+          if (cleanSql.includes('UPDATE members')) {
+            const mId = params[params.length - 1];
+            const item = memoryStore.members.find(m => m.id === Number(mId));
+            if (item) {
+              if (params.length >= 8) {
+                item.name = params[0]; item.email = params[1]; item.contact_no_1 = params[2];
+                item.contact_no_2 = params[3]; item.aadhaar_no = params[4]; item.kyc_status = params[5];
+                item.chit_status = params[6];
+              } else {
+                item.chit_status = 'Deactivated'; item.kyc_status = 'Inactive';
+              }
+            }
+            return { changes: 1 };
+          }
+          if (cleanSql.includes('DELETE FROM chit_enrollments')) {
+            const enrollId = params[0];
+            memoryStore.chit_enrollments = memoryStore.chit_enrollments.filter(e => e.id !== Number(enrollId));
+            return { changes: 1 };
+          }
           return { lastInsertRowid: 1, changes: 1 };
         }
       };
@@ -277,7 +330,7 @@ try {
     transaction: (fn) => fn
   };
 
-  // Seed memory DB
+  // Seed initial memory DB
   seedMemoryDB(db);
 }
 
