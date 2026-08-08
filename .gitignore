@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Production build
+client/dist/
+
+# Database files (Auto-created on server init)
+server/db/*.db
+server/db/*.db-journal
+
+# KYC Uploads (Local runtime storage)
+server/uploads/kyc/*
+!server/uploads/kyc/.gitkeep
+
+# Environment variables & secrets
+.env
+client/.env.local
+
+# System & Editor files
+.DS_Store
+*.log
+npm-debug.log*
