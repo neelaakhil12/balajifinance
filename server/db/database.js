@@ -1,8 +1,13 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
-const dbPath = path.join(__dirname, 'balaji_chitfund.db');
+// Handle Vercel serverless read-only filesystem by storing DB in /tmp if deployed
+const isVercel = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME;
+const dbDir = isVercel ? '/tmp' : __dirname;
+const dbPath = path.join(dbDir, 'balaji_chitfund.db');
+
 const db = new Database(dbPath, { verbose: null });
 
 db.pragma('foreign_keys = ON');
@@ -42,7 +47,7 @@ function initDB() {
     CREATE TABLE IF NOT EXISTS kyc_documents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       member_id INTEGER NOT NULL,
-      document_type TEXT NOT NULL, -- 'aadhaar' or 'pan'
+      document_type TEXT NOT NULL,
       file_name TEXT NOT NULL,
       original_name TEXT NOT NULL,
       file_path TEXT NOT NULL,
@@ -67,7 +72,7 @@ function initDB() {
       foreman_commission_amount REAL NOT NULL,
       start_date TEXT NOT NULL,
       end_date TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'Active', -- 'Upcoming', 'Active', 'Completed', 'Cancelled'
+      status TEXT NOT NULL DEFAULT 'Active',
       created_at TEXT NOT NULL
     );
   `);
@@ -122,9 +127,9 @@ function initDB() {
       net_amount_due REAL NOT NULL,
       amount_paid REAL NOT NULL DEFAULT 0,
       payment_date TEXT,
-      payment_mode TEXT DEFAULT 'Cash', -- 'Cash', 'UPI', 'Bank Transfer', 'Cheque'
+      payment_mode TEXT DEFAULT 'Cash',
       reference_no TEXT,
-      status TEXT NOT NULL DEFAULT 'Pending', -- 'Pending', 'Partially Paid', 'Paid', 'Overdue'
+      status TEXT NOT NULL DEFAULT 'Pending',
       notes TEXT,
       created_at TEXT NOT NULL,
       FOREIGN KEY (scheme_id) REFERENCES chit_schemes(id) ON DELETE CASCADE,
@@ -168,9 +173,7 @@ function initDB() {
 
 function seedDB() {
   const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
-  if (userCount > 0) return; // Already seeded
-
-  console.log('Seeding initial Balaji Savings & Finance database...');
+  if (userCount > 0) return;
 
   const now = new Date().toISOString();
 
@@ -234,8 +237,6 @@ function seedDB() {
   }
 
   // 5. Seed Demo Month 1 Auction
-  // Winner: Ramesh Verma (Member ID 3)
-  // Discount: 15,000, Foreman Comm: 5,000, Winner Payout: 85,000, Dividend Pool: 10,000, Per Member: 500, Next Payable: 4,500
   const auctionResult = db.prepare(`
     INSERT INTO auctions (scheme_id, month_number, auction_date, winning_member_id, winning_bid_discount, foreman_commission, winner_payout, dividend_pool, dividend_per_member, next_month_payable, notes, created_at)
     VALUES (?, 1, '2026-01-15', 3, 15000, 5000, 85000, 10000, 500, 4500, 'First month auction successfully completed.', ?)
@@ -255,23 +256,15 @@ function seedDB() {
   `);
 
   for (let mId = 1; mId <= 20; mId++) {
-    // Insert dividend record
     insertDividend.run(auctionId, schemeId, mId, now);
 
-    // Vary status for realistic demo (most paid, 2 pending, 1 partial)
     let amountPaid = 4500;
     let payDate = '2026-01-20';
     let payMode = 'UPI';
     let refNo = `UPI/20260120/00${mId}`;
     let status = 'Paid';
 
-    if (mId === 18) {
-      amountPaid = 0;
-      payDate = null;
-      payMode = null;
-      refNo = null;
-      status = 'Pending';
-    } else if (mId === 19) {
+    if (mId === 18 || mId === 19) {
       amountPaid = 0;
       payDate = null;
       payMode = null;
@@ -293,8 +286,6 @@ function seedDB() {
     INSERT INTO audit_logs (user_id, user_name, action, target, details, timestamp)
     VALUES (1, 'Admin Staff', 'SYSTEM_INITIALIZED', 'Database', 'Initial database seed complete with default ₹1,00,000 scheme & 20 members.', ?)
   `).run(now);
-
-  console.log('Database seeding finished successfully!');
 }
 
 initDB();

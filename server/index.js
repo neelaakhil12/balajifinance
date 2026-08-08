@@ -39,6 +39,18 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Serve frontend static assets if in production Vercel monorepo
+const clientDistPath = path.join(__dirname, '../client/dist');
+app.use(express.static(clientDistPath));
+
+// Fallback for React SPA Routing
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) return next();
+  res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
+    if (err) next();
+  });
+});
+
 // Centralized Error Handling Middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled API Error:', err);
@@ -48,10 +60,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`=======================================================`);
-  console.log(`BALAJI SAVINGS & FINANCE - Server Running on Port ${PORT}`);
-  console.log(`REST API Ready at http://localhost:${PORT}/api`);
-  console.log(`=======================================================`);
-});
+// Start Server if run directly
+if (require.main === module || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`=======================================================`);
+    console.log(`BALAJI SAVINGS & FINANCE - Server Running on Port ${PORT}`);
+    console.log(`REST API Ready at http://localhost:${PORT}/api`);
+    console.log(`=======================================================`);
+  });
+}
+
+module.exports = app;

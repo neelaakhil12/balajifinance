@@ -1,0 +1,10 @@
+{
+  "name": "balaji-savings-and-finance",
+  "version": "1.0.0",
+  "description": "Dynamic Chit Fund & Savings Management Application for Balaji Savings & Finance",
+  "private": true,
+  "scripts": {
+    "build": "cd client && npm install && npm run build",
+    "start": "cd server && node index.js"
+  }
+}
