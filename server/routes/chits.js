@@ -172,7 +172,9 @@ router.get('/:id', authenticateToken, (req, res) => {
 
       return {
         ...m,
+        duration_months: scheme.duration_months,
         paid_months_count: paidMonths,
+        remaining_months_count: Math.max(0, scheme.duration_months - paidMonths),
         total_amount_paid: totalAmountPaid,
         due_months_count: dueMonths,
         total_amount_due: totalAmountDue,

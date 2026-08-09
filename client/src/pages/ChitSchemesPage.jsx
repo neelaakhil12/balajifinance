@@ -457,7 +457,8 @@ export default function ChitSchemesPage() {
                         <th className="p-3">Ticket & Member</th>
                         <th className="p-3">Monthly Base</th>
                         <th className="p-3">Months Paid</th>
-                        <th className="p-3">Months Due</th>
+                        <th className="p-3">Remaining to Pay</th>
+                        <th className="p-3">Current Dues</th>
                         <th className="p-3">Auction Status</th>
                         <th className="p-3 text-center">Payment Status</th>
                       </tr>
@@ -474,7 +475,11 @@ export default function ChitSchemesPage() {
                           );
                         })
                         .map((m) => {
+                          const duration = schemeDetails.scheme.duration_months;
+                          const paidCount = m.paid_months_count || 0;
+                          const remainingCount = Math.max(0, duration - paidCount);
                           const isUpToDate = m.due_months_count === 0;
+
                           return (
                             <tr key={`sch-mbr-${m.enrollment_id}`} className="hover:bg-slate-50">
                               <td className="p-3">
@@ -496,7 +501,7 @@ export default function ChitSchemesPage() {
                               <td className="p-3">
                                 <div>
                                   <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                    {m.paid_months_count} Months Paid
+                                    {paidCount} of {duration} Months Paid
                                   </span>
                                   <span className="text-[10px] text-slate-500 block mt-0.5">
                                     Total Paid: <strong>{formatCurrency(m.total_amount_paid)}</strong>
@@ -505,18 +510,29 @@ export default function ChitSchemesPage() {
                               </td>
 
                               <td className="p-3">
+                                <div>
+                                  <span className="font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                                    {remainingCount} Months Left to Pay
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
+                                    ({((paidCount / duration) * 100).toFixed(0)}% Completed)
+                                  </span>
+                                </div>
+                              </td>
+
+                              <td className="p-3">
                                 {m.due_months_count > 0 ? (
                                   <div>
                                     <span className="font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                                      {m.due_months_count} Months Due
+                                      {m.due_months_count} Months Pending
                                     </span>
                                     <span className="text-[10px] text-rose-600 block mt-0.5 font-bold">
                                       Due Amount: {formatCurrency(m.total_amount_due)}
                                     </span>
                                   </div>
                                 ) : (
-                                  <span className="font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                                    0 Months Due
+                                  <span className="font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-[10px]">
+                                    ✓ No Overdue
                                   </span>
                                 )}
                               </td>
