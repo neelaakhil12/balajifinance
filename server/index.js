@@ -20,18 +20,18 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Register API Endpoints
-app.use('/api/auth', authRoutes);
-app.use('/api/members', memberRoutes);
-app.use('/api/chits', chitRoutes);
-app.use('/api/auctions', auctionRoutes);
-app.use('/api/payments', paymentRoutes);
-app.use('/api/dividends', dividendRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/audit', auditRoutes);
+// Register API Endpoints (Supports both /api/* and /* paths on Vercel)
+app.use(['/api/auth', '/auth'], authRoutes);
+app.use(['/api/members', '/members'], memberRoutes);
+app.use(['/api/chits', '/chits'], chitRoutes);
+app.use(['/api/auctions', '/auctions'], auctionRoutes);
+app.use(['/api/payments', '/payments'], paymentRoutes);
+app.use(['/api/dividends', '/dividends'], dividendRoutes);
+app.use(['/api/reports', '/reports'], reportRoutes);
+app.use(['/api/audit', '/audit'], auditRoutes);
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get(['/api/health', '/health'], (req, res) => {
   res.json({
     status: 'healthy',
     company: 'BALAJI SAVINGS & FINANCE',
@@ -39,15 +39,24 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Serve frontend static assets if in production Vercel monorepo
-const clientDistPath = path.join(__dirname, '../client/dist');
-app.use(express.static(clientDistPath));
+// Serve frontend static assets ONLY when running standalone (not inside Vercel Serverless Function)
+if (!process.env.VERCEL) {
+  const clientDistPath = path.join(__dirname, '../client/dist');
+  app.use(express.static(clientDistPath));
 
-// Fallback for React SPA Routing
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api')) return next();
-  res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
-    if (err) next();
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api')) return next();
+    res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
+      if (err) next();
+    });
+  });
+}
+
+// Fallback 404 JSON for unmatched API routes
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `API endpoint ${req.originalUrl || req.url} not found.`
   });
 });
 
