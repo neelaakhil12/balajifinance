@@ -226,10 +226,6 @@ router.post('/', authenticateToken, (req, res) => {
           now
         );
       });
-          `Auto-created from Month ${monthNum} Auction Dividend`,
-          now
-        );
-      });
 
       return { auctionId, resultCalc: calc };
     });
