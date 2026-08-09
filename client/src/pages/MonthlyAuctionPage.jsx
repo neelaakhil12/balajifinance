@@ -100,7 +100,7 @@ export default function MonthlyAuctionPage() {
     }
   };
 
-  // Map of ticket_number -> month_number won in this scheme
+  // Map of ticket_key -> month_number won in this scheme (for display)
   const previousWinnersMap = React.useMemo(() => {
     const map = {};
     if (schemeDetails?.auctions) {
@@ -111,6 +111,25 @@ export default function MonthlyAuctionPage() {
     }
     return map;
   }, [schemeDetails]);
+
+  // Set of member_ids who have already won any auction in this scheme
+  // (Each PERSON can only win ONCE per scheme, regardless of how many tickets they hold)
+  const previousWinnerMemberIds = React.useMemo(() => {
+    const set = new Set();
+    if (schemeDetails?.auctions) {
+      schemeDetails.auctions.forEach((auc) => {
+        set.add(Number(auc.winning_member_id));
+      });
+    }
+    return set;
+  }, [schemeDetails]);
+
+  // Helper: get which month a member won (if any)
+  const getMemberWonMonth = (memberId) => {
+    if (!schemeDetails?.auctions) return null;
+    const win = schemeDetails.auctions.find((auc) => Number(auc.winning_member_id) === Number(memberId));
+    return win ? win.month_number : null;
+  };
 
   // Live Server Financial Calculation Preview Trigger
   useEffect(() => {
@@ -360,16 +379,17 @@ export default function MonthlyAuctionPage() {
                       <optgroup label="Enrolled Scheme Roster & Ticket Numbers">
                         {schemeDetails.enrolledMembers.map((m) => {
                           const ticketKey = `${m.member_id}_${m.ticket_number || 1}`;
-                          const wonMonth = previousWinnersMap[ticketKey];
+                          // Block by MEMBER_ID — one person can only win ONCE per scheme
+                          const isIneligible = previousWinnerMemberIds.has(Number(m.member_id));
+                          const wonMonth = getMemberWonMonth(m.member_id);
                           return (
                             <option
                               key={`enrolled-${m.member_id}-${m.ticket_number}`}
                               value={ticketKey}
-                              disabled={!!wonMonth}
-                              className={wonMonth ? "text-rose-600 bg-rose-50 font-bold" : "text-emerald-700 font-medium"}
-                              style={wonMonth ? { color: '#dc2626', backgroundColor: '#fef2f2', fontWeight: 'bold' } : {}}
+                              disabled={isIneligible}
+                              style={isIneligible ? { color: '#dc2626', backgroundColor: '#fef2f2', fontWeight: 'bold' } : {}}
                             >
-                              Ticket #{m.ticket_number}: {m.name} ({m.member_code}) {wonMonth ? `— 🚫 WON IN MONTH ${wonMonth} (INELIGIBLE)` : '— ✅ Eligible to Bid'}
+                              Ticket #{m.ticket_number}: {m.name} ({m.member_code}) {isIneligible ? `— 🚫 ALREADY WON MONTH ${wonMonth} (INELIGIBLE)` : '— ✅ Eligible to Bid'}
                             </option>
                           );
                         })}
@@ -386,16 +406,17 @@ export default function MonthlyAuctionPage() {
                       return (
                         <optgroup label="Other Registered Members (Auto-Enroll on Selection)">
                           {unenrolledMembers.map((m) => {
-                            const wonMonth = previousWinnersMap[m.id];
+                            // Also check if this unenrolled member has previously won via another ticket
+                            const isIneligible = previousWinnerMemberIds.has(Number(m.id));
+                            const wonMonth = getMemberWonMonth(m.id);
                             return (
                               <option
                                 key={`system-${m.id}`}
                                 value={m.id}
-                                disabled={!!wonMonth}
-                                className={wonMonth ? "text-rose-600 bg-rose-50 font-bold" : "text-blue-700 font-medium"}
-                                style={wonMonth ? { color: '#dc2626', backgroundColor: '#fef2f2', fontWeight: 'bold' } : {}}
+                                disabled={isIneligible}
+                                style={isIneligible ? { color: '#dc2626', backgroundColor: '#fef2f2', fontWeight: 'bold' } : {}}
                               >
-                                {m.name} ({m.member_code}) - Phone: {m.contact_no_1} {wonMonth ? `— 🚫 WON IN MONTH ${wonMonth} (INELIGIBLE)` : '— ⚡ Auto-Enroll on Selection'}
+                                {m.name} ({m.member_code}) - Phone: {m.contact_no_1} {isIneligible ? `— 🚫 ALREADY WON MONTH ${wonMonth} (INELIGIBLE)` : '— ⚡ Auto-Enroll on Selection'}
                               </option>
                             );
                           })}
@@ -421,19 +442,21 @@ export default function MonthlyAuctionPage() {
                   <div className="flex flex-wrap gap-2 text-xs pt-1">
                     {schemeDetails.enrolledMembers.map((m) => {
                       const ticketKey = `${m.member_id}_${m.ticket_number || 1}`;
-                      const wonMonth = previousWinnersMap[ticketKey];
+                      // Block by MEMBER_ID — mark ALL tickets of a previous winner red
+                      const isIneligible = previousWinnerMemberIds.has(Number(m.member_id));
+                      const wonMonth = getMemberWonMonth(m.member_id);
                       return (
                         <div
                           key={`badge-${ticketKey}`}
                           className={`px-2.5 py-1.5 rounded-lg border font-bold text-[11px] flex items-center gap-1.5 shadow-2xs ${
-                            wonMonth
+                            isIneligible
                               ? 'bg-rose-100 text-rose-900 border-rose-300 ring-1 ring-rose-400/50'
                               : 'bg-emerald-50 text-emerald-900 border-emerald-300'
                           }`}
                         >
                           <span className="font-mono text-[10px] bg-white/70 px-1 py-0.5 rounded border border-slate-200">T#{m.ticket_number}</span>
                           <span>{m.name}</span>
-                          {wonMonth ? (
+                          {isIneligible ? (
                             <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.5 rounded font-extrabold ml-1 uppercase shadow-xs">
                               🚫 WON MONTH {wonMonth} (INELIGIBLE)
                             </span>

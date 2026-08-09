@@ -151,10 +151,11 @@ router.post('/', authenticateToken, (req, res) => {
 
     const winningTicketNo = req.body.winning_ticket_number ? parseInt(req.body.winning_ticket_number, 10) : 1;
 
-    // Check if this specific ticket number has already won a previous auction in this scheme
-    const previousWin = db.prepare('SELECT id, month_number FROM auctions WHERE scheme_id = ? AND winning_ticket_number = ?').get(scheme_id, winningTicketNo);
+    // Check if this MEMBER has already won any auction in this scheme
+    // Rule: Each PERSON can only win ONCE per scheme, regardless of how many tickets they hold
+    const previousWin = db.prepare('SELECT id, month_number FROM auctions WHERE scheme_id = ? AND winning_member_id = ?').get(scheme_id, winning_member_id);
     if (previousWin) {
-      return res.status(400).json({ success: false, message: `Ticket #${winningTicketNo} has already won Month ${previousWin.month_number} auction in this scheme.` });
+      return res.status(400).json({ success: false, message: `This member has already won Month ${previousWin.month_number} auction in this scheme. Each member can only win once.` });
     }
 
     // Perform server-side financial calculations using full scheme membership capacity
