@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import API from '../services/api';
-import { useAuth } from '../context/AuthContext';
 import { formatDate } from '../utils/formatters';
 import { Settings, ShieldCheck, Activity, User, Building2, Lock, CheckCircle2 } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const user = { name: 'Admin Staff', username: 'admin', role: 'Administrator' };
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 

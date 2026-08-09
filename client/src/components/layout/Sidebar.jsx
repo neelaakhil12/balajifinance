@@ -1,6 +1,5 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard,
   UserPlus,
@@ -11,12 +10,10 @@ import {
   CreditCard,
   PieChart,
   FileSpreadsheet,
-  Settings,
-  LogOut
+  Settings
 } from 'lucide-react';
 
 export default function Sidebar({ mobileOpen, closeMobileMenu }) {
-  const { logout } = useAuth();
 
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -64,17 +61,6 @@ export default function Sidebar({ mobileOpen, closeMobileMenu }) {
           );
         })}
       </nav>
-
-      {/* Logout Action at Bottom */}
-      <div className="p-3 border-t border-slate-800/80">
-        <button
-          onClick={logout}
-          className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm font-medium text-rose-400 hover:bg-rose-950/40 hover:text-rose-300 transition duration-150"
-        >
-          <LogOut className="w-4 h-4 shrink-0" />
-          <span>Logout</span>
-        </button>
-      </div>
 
     </div>
   );
