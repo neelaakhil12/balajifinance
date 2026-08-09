@@ -31,6 +31,15 @@ export default function MonthlyAuctionPage() {
   const [winningBidDiscount, setWinningBidDiscount] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Winner Payout Payment Proof State
+  const [payoutMode, setPayoutMode] = useState('Bank Transfer');
+  const [payoutRefNo, setPayoutRefNo] = useState('');
+  const [payoutBankName, setPayoutBankName] = useState('');
+  const [payoutChequeNo, setPayoutChequeNo] = useState('');
+  const [payoutChequeDate, setPayoutChequeDate] = useState(new Date().toISOString().split('T')[0]);
+  const [payoutProofImage, setPayoutProofImage] = useState('');
+  const [payoutPreviewUrl, setPayoutPreviewUrl] = useState('');
+
   // Scheme Enrolled Members & Live Calculation Preview
   const [allMembers, setAllMembers] = useState([]);
   const [schemeDetails, setSchemeDetails] = useState(null);
@@ -126,6 +135,18 @@ export default function MonthlyAuctionPage() {
     }
   };
 
+  const handlePayoutProofFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPayoutProofImage(reader.result);
+        setPayoutPreviewUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleRecordAuction = async (e) => {
     e.preventDefault();
     if (!selectedSchemeId || !winningMemberId || winningBidDiscount === '') {
@@ -146,7 +167,13 @@ export default function MonthlyAuctionPage() {
         winning_member_id: Number(memId),
         winning_ticket_number: Number(ticketNo),
         winning_bid_discount: Number(winningBidDiscount),
-        notes
+        notes,
+        payout_mode: payoutMode,
+        payout_ref_no: payoutRefNo,
+        payout_bank_name: payoutBankName,
+        payout_cheque_no: payoutChequeNo,
+        payout_cheque_date: payoutChequeDate,
+        payout_proof_image: payoutProofImage
       });
 
       if (res.data.success) {
@@ -155,6 +182,13 @@ export default function MonthlyAuctionPage() {
         setWinningBidDiscount('');
         setWinningMemberId('');
         setNotes('');
+        setPayoutMode('Bank Transfer');
+        setPayoutRefNo('');
+        setPayoutBankName('');
+        setPayoutChequeNo('');
+        setPayoutChequeDate(new Date().toISOString().split('T')[0]);
+        setPayoutProofImage('');
+        setPayoutPreviewUrl('');
         setLiveCalc(null);
         // Refresh auction history & scheme details
         fetchInitialData();
@@ -435,6 +469,191 @@ export default function MonthlyAuctionPage() {
                 placeholder="Optional remarks (e.g., Highest bidder after 15 rounds)"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            {/* Winner Payout Payment Mode & Proof */}
+            <div className="sm:col-span-2">
+              <div className="mt-1 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-extrabold text-emerald-800">💸 Winner Payout Payment Details</span>
+                  <span className="text-[10px] text-emerald-600 font-semibold">(How is the winner being paid?)</span>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1.5 text-xs">Payout Method *</label>
+                  <select
+                    value={payoutMode}
+                    onChange={(e) => {
+                      const mode = e.target.value;
+                      setPayoutMode(mode);
+                      setPayoutRefNo('');
+                      setPayoutBankName('');
+                      setPayoutChequeNo('');
+                      setPayoutProofImage('');
+                      setPayoutPreviewUrl('');
+                    }}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  >
+                    <option value="Bank Transfer">🏦 Bank Transfer (NEFT / RTGS / IMPS)</option>
+                    <option value="UPI">📱 UPI / GPay / PhonePe / Paytm</option>
+                    <option value="Cheque">📜 Cheque Payment</option>
+                    <option value="Cash">💵 Cash Payout</option>
+                  </select>
+                </div>
+
+                {/* Bank Transfer */}
+                {payoutMode === 'Bank Transfer' && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1 text-xs">Beneficiary Bank Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={payoutBankName}
+                          onChange={(e) => setPayoutBankName(e.target.value)}
+                          placeholder="e.g. HDFC Bank, State Bank of India"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1 text-xs">Bank UTR / Transaction Ref No.</label>
+                        <input
+                          type="text"
+                          value={payoutRefNo}
+                          onChange={(e) => setPayoutRefNo(e.target.value)}
+                          placeholder="e.g. N20261984210"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1 text-xs">Upload Bank Transfer Receipt / Proof Screenshot</label>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={handlePayoutProofFileChange}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs bg-white cursor-pointer"
+                      />
+                      {payoutPreviewUrl && (
+                        <div className="mt-2 p-2 border rounded-xl bg-white flex items-center gap-3 shadow-xs">
+                          <img src={payoutPreviewUrl} alt="Payout Proof" className="w-14 h-14 object-cover rounded-lg border" />
+                          <div className="text-[11px]">
+                            <span className="font-bold text-emerald-700 block">✓ Bank Transfer Proof Uploaded</span>
+                            <span className="text-slate-500 text-[10px]">Attached to auction record</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* UPI */}
+                {payoutMode === 'UPI' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1 text-xs">UPI Transaction UTR / Ref No.</label>
+                      <input
+                        type="text"
+                        value={payoutRefNo}
+                        onChange={(e) => setPayoutRefNo(e.target.value)}
+                        placeholder="e.g. UPI/664239812 or 12-digit UTR"
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1 text-xs">Upload UPI Payment Screenshot *</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePayoutProofFileChange}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs bg-white cursor-pointer"
+                      />
+                      {payoutPreviewUrl && (
+                        <div className="mt-2 p-2 border rounded-xl bg-white flex items-center gap-3 shadow-xs">
+                          <img src={payoutPreviewUrl} alt="UPI Payout Proof" className="w-14 h-14 object-cover rounded-lg border" />
+                          <div className="text-[11px]">
+                            <span className="font-bold text-emerald-700 block">✓ UPI Screenshot Uploaded</span>
+                            <span className="text-slate-500 text-[10px]">Attached to auction record</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Cheque */}
+                {payoutMode === 'Cheque' && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1 text-xs">Cheque Number *</label>
+                        <input
+                          type="text"
+                          required
+                          value={payoutChequeNo}
+                          onChange={(e) => setPayoutChequeNo(e.target.value)}
+                          placeholder="e.g. CHK-492104"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1 text-xs">Drawee Bank Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={payoutBankName}
+                          onChange={(e) => setPayoutBankName(e.target.value)}
+                          placeholder="e.g. ICICI Bank"
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1 text-xs">Cheque Date *</label>
+                        <input
+                          type="date"
+                          required
+                          value={payoutChequeDate}
+                          onChange={(e) => setPayoutChequeDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1 text-xs">Upload Cheque Leaf Screenshot / Photo *</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePayoutProofFileChange}
+                        className="w-full px-3 py-1.5 border border-slate-300 rounded-xl text-xs bg-white cursor-pointer"
+                      />
+                      {payoutPreviewUrl && (
+                        <div className="mt-2 p-2 border rounded-xl bg-white flex items-center gap-3 shadow-xs">
+                          <img src={payoutPreviewUrl} alt="Cheque Leaf" className="w-14 h-14 object-cover rounded-lg border" />
+                          <div className="text-[11px]">
+                            <span className="font-bold text-amber-800 block">✓ Cheque Leaf Photo Uploaded</span>
+                            <span className="text-slate-500 text-[10px]">Attached to auction record</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Cash */}
+                {payoutMode === 'Cash' && (
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1 text-xs">Cash Disbursed By / Staff Note</label>
+                    <input
+                      type="text"
+                      value={payoutRefNo}
+                      onChange={(e) => setPayoutRefNo(e.target.value)}
+                      placeholder="e.g. Disbursed at office by Manager"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs bg-white"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

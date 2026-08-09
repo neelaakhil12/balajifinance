@@ -565,6 +565,24 @@ if (isNative && typeof db.exec === 'function') {
       if (!aucCols.some(c => c.name === 'winning_ticket_number')) {
         db.exec("ALTER TABLE auctions ADD COLUMN winning_ticket_number INTEGER DEFAULT 1");
       }
+      if (!aucCols.some(c => c.name === 'payout_mode')) {
+        db.exec("ALTER TABLE auctions ADD COLUMN payout_mode TEXT DEFAULT 'Bank Transfer'");
+      }
+      if (!aucCols.some(c => c.name === 'payout_ref_no')) {
+        db.exec("ALTER TABLE auctions ADD COLUMN payout_ref_no TEXT");
+      }
+      if (!aucCols.some(c => c.name === 'payout_bank_name')) {
+        db.exec("ALTER TABLE auctions ADD COLUMN payout_bank_name TEXT");
+      }
+      if (!aucCols.some(c => c.name === 'payout_cheque_no')) {
+        db.exec("ALTER TABLE auctions ADD COLUMN payout_cheque_no TEXT");
+      }
+      if (!aucCols.some(c => c.name === 'payout_cheque_date')) {
+        db.exec("ALTER TABLE auctions ADD COLUMN payout_cheque_date TEXT");
+      }
+      if (!aucCols.some(c => c.name === 'payout_proof_image')) {
+        db.exec("ALTER TABLE auctions ADD COLUMN payout_proof_image TEXT");
+      }
     } catch (e) {}
 
     try {

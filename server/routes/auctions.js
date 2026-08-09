@@ -108,7 +108,13 @@ router.post('/', authenticateToken, (req, res) => {
       auction_date,
       winning_member_id,
       winning_bid_discount,
-      notes
+      notes,
+      payout_mode,
+      payout_ref_no,
+      payout_bank_name,
+      payout_cheque_no,
+      payout_cheque_date,
+      payout_proof_image
     } = req.body;
 
     if (!scheme_id || !month_number || !winning_member_id || winning_bid_discount === undefined) {
@@ -171,8 +177,9 @@ router.post('/', authenticateToken, (req, res) => {
         INSERT INTO auctions (
           scheme_id, month_number, auction_date, winning_member_id, winning_ticket_number,
           winning_bid_discount, foreman_commission, winner_payout,
-          dividend_pool, dividend_per_member, next_month_payable, notes, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          dividend_pool, dividend_per_member, next_month_payable, notes, created_at,
+          payout_mode, payout_ref_no, payout_bank_name, payout_cheque_no, payout_cheque_date, payout_proof_image
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const aucResult = aucStmt.run(
@@ -188,7 +195,13 @@ router.post('/', authenticateToken, (req, res) => {
         calc.dividendPerMember,
         calc.nextMonthPayable,
         notes || '',
-        now
+        now,
+        payout_mode || 'Bank Transfer',
+        payout_ref_no || null,
+        payout_bank_name || null,
+        payout_cheque_no || null,
+        payout_cheque_date || null,
+        payout_proof_image || null
       );
 
       const auctionId = aucResult.lastInsertRowid;
