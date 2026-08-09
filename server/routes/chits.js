@@ -114,7 +114,7 @@ router.post('/', authenticateToken, (req, res) => {
   }
 });
 
-// GET /api/chits/:id (Scheme Details + Enrolled Members + Auctions History)
+// GET /api/chits/:id (Scheme Details + Enrolled Members with Payment Stats + Auctions History)
 router.get('/:id', authenticateToken, (req, res) => {
   try {
     const schemeId = req.params.id;
@@ -125,7 +125,7 @@ router.get('/:id', authenticateToken, (req, res) => {
     }
 
     // Enrolled members
-    const enrolledMembers = db.prepare(`
+    const rawEnrolledMembers = db.prepare(`
       SELECT ce.id as enrollment_id, ce.ticket_number, ce.enrolled_at, m.id as member_id, m.member_code, m.name, m.email, m.contact_no_1, m.aadhaar_no, m.kyc_status
       FROM chit_enrollments ce
       JOIN members m ON ce.member_id = m.id
@@ -141,6 +141,49 @@ router.get('/:id', authenticateToken, (req, res) => {
       WHERE a.scheme_id = ?
       ORDER BY a.month_number ASC
     `).all(schemeId);
+
+    // Enrich enrolled members with real-time payment stats
+    const enrolledMembers = rawEnrolledMembers.map(m => {
+      const pmtRecords = db.prepare(`
+        SELECT * FROM monthly_payments
+        WHERE scheme_id = ? AND member_id = ? AND (ticket_number = ? OR ticket_number IS NULL OR ticket_number = 1)
+      `).all(schemeId, m.member_id, m.ticket_number || 1);
+
+      let paidMonths = 0;
+      let totalAmountPaid = 0;
+      let dueMonths = 0;
+      let totalAmountDue = 0;
+
+      pmtRecords.forEach(p => {
+        if (p.status === 'Paid') {
+          paidMonths++;
+          totalAmountPaid += (p.amount_paid || 0);
+        } else if (p.status === 'Partially Paid') {
+          totalAmountPaid += (p.amount_paid || 0);
+          dueMonths++;
+          totalAmountDue += Math.max(0, (p.net_amount_due || 0) - (p.amount_paid || 0));
+        } else if (p.status === 'Pending' || p.status === 'Overdue') {
+          dueMonths++;
+          totalAmountDue += (p.net_amount_due || 0);
+        }
+      });
+
+      const auctionWin = auctions.find(a => Number(a.winning_member_id) === Number(m.member_id) && (Number(a.winning_ticket_number || 1) === Number(m.ticket_number || 1)));
+
+      return {
+        ...m,
+        paid_months_count: paidMonths,
+        total_amount_paid: totalAmountPaid,
+        due_months_count: dueMonths,
+        total_amount_due: totalAmountDue,
+        monthly_base_payable: scheme.monthly_contribution,
+        auction_win: auctionWin ? {
+          month_number: auctionWin.month_number,
+          winner_payout: auctionWin.winner_payout,
+          winning_bid_discount: auctionWin.winning_bid_discount
+        } : null
+      };
+    });
 
     return res.json({
       success: true,
