@@ -495,7 +495,7 @@ export default function ChitSchemesPage() {
                               </td>
 
                               <td className="p-3 font-extrabold text-blue-700">
-                                {formatCurrency(m.monthly_base_payable)}
+                                {formatCurrency(m.monthly_base_payable || schemeDetails?.scheme?.monthly_contribution || (schemeDetails?.scheme?.total_chit_value / schemeDetails?.scheme?.duration_months))}
                               </td>
 
                               <td className="p-3">
