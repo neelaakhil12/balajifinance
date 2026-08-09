@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import API from '../services/api';
 import Toast from '../components/common/Toast';
 import Modal from '../components/common/Modal';
+import { formatCurrency } from '../utils/formatters';
 import {
   Users,
   Search,
@@ -16,7 +17,8 @@ import {
   ShieldCheck,
   Phone,
   Mail,
-  AlertTriangle
+  AlertTriangle,
+  Layers
 } from 'lucide-react';
 
 export default function MembersPage() {
@@ -35,6 +37,25 @@ export default function MembersPage() {
   const [toast, setToast] = useState({ type: '', message: '' });
   const [editModalMember, setEditModalMember] = useState(null);
   const [deleteModalMember, setDeleteModalMember] = useState(null);
+  const [schemesModalMember, setSchemesModalMember] = useState(null);
+  const [memberSchemeDetails, setMemberSchemeDetails] = useState(null);
+  const [loadingSchemesModal, setLoadingSchemesModal] = useState(false);
+
+  const handleViewMemberSchemes = async (mbr) => {
+    try {
+      setSchemesModalMember(mbr);
+      setLoadingSchemesModal(true);
+      const res = await API.get(`/members/${mbr.id}`);
+      if (res.data.success) {
+        setMemberSchemeDetails(res.data);
+      }
+    } catch (err) {
+      console.error('Fetch member scheme details failed:', err);
+      setToast({ type: 'error', message: 'Failed to load member schemes.' });
+    } finally {
+      setLoadingSchemesModal(false);
+    }
+  };
 
   useEffect(() => {
     fetchMembers(1);
@@ -206,8 +227,15 @@ export default function MembersPage() {
                       {mbr.contact_no_1}
                       {mbr.contact_no_2 && <span className="text-[10px] text-slate-400 block">{mbr.contact_no_2}</span>}
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-600">
-                      {mbr.masked_aadhaar}
+                    <td className="py-3.5 px-4">
+                      <button
+                        onClick={() => handleViewMemberSchemes(mbr)}
+                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
+                        title="Click to see all participated chit schemes and tickets held"
+                      >
+                        <Layers className="w-3.5 h-3.5 text-blue-600" />
+                        <span>{mbr.schemes_count || 0} Schemes ({mbr.tickets_count || 0} Tickets)</span>
+                      </button>
                     </td>
                     <td className="py-3.5 px-4">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -218,21 +246,20 @@ export default function MembersPage() {
                         {mbr.kyc_status}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        mbr.chit_status === 'Active'
-                          ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                          : 'bg-slate-100 text-slate-600 border border-slate-300'
-                      }`}>
-                        {mbr.chit_status}
-                      </span>
-                    </td>
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
+                          onClick={() => handleViewMemberSchemes(mbr)}
+                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs"
+                          title="View Participated Schemes"
+                        >
+                          <Layers className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>My Schemes</span>
+                        </button>
+                        <button
                           onClick={() => navigate(`/members/${mbr.id}`)}
                           className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition"
-                          title="View Profile & Documents"
+                          title="View Full Profile & KYC"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -389,6 +416,127 @@ export default function MembersPage() {
                 Deactivate Member
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Participated Chit Schemes Modal */}
+      {schemesModalMember && (
+        <Modal
+          isOpen={!!schemesModalMember}
+          onClose={() => {
+            setSchemesModalMember(null);
+            setMemberSchemeDetails(null);
+          }}
+          title={`Participated Chit Schemes: ${schemesModalMember.name} (${schemesModalMember.member_code})`}
+          maxWidth="max-w-3xl"
+        >
+          <div className="space-y-5 text-xs">
+            {loadingSchemesModal ? (
+              <div className="py-12 text-center text-slate-500 space-y-2">
+                <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                <p>Fetching scheme participation details...</p>
+              </div>
+            ) : !memberSchemeDetails || memberSchemeDetails.chitSchemes?.length === 0 ? (
+              <div className="p-6 bg-slate-50 border rounded-xl text-center text-slate-500">
+                Member <strong>{schemesModalMember.name}</strong> is currently not enrolled in any chit scheme.
+              </div>
+            ) : (
+              <>
+                {/* Summary Portfolio Card */}
+                <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <span className="text-[10px] text-blue-400 font-mono font-bold uppercase tracking-wider block">Member Portfolio</span>
+                    <h3 className="text-lg font-bold">{schemesModalMember.name}</h3>
+                    <p className="text-slate-400 text-xs">{schemesModalMember.contact_no_1} • {schemesModalMember.email}</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="bg-slate-800 px-3 py-2 rounded-xl text-right">
+                      <span className="text-[10px] text-slate-400 font-bold block uppercase">Schemes Count</span>
+                      <span className="text-base font-extrabold text-blue-400">{memberSchemeDetails.chitSchemes.length} Schemes</span>
+                    </div>
+                    <div className="bg-slate-800 px-3 py-2 rounded-xl text-right">
+                      <span className="text-[10px] text-slate-400 font-bold block uppercase">Tickets Held</span>
+                      <span className="text-base font-extrabold text-emerald-400">
+                        {memberSchemeDetails.chitSchemes.reduce((acc, s) => acc + (s.ticket_number ? 1 : 0), 0) || memberSchemeDetails.chitSchemes.length} Tickets
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Scheme Cards List */}
+                <div className="space-y-3">
+                  <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">Enrolled Chit Schemes Breakdown</h4>
+                  
+                  <div className="grid grid-cols-1 gap-3">
+                    {memberSchemeDetails.chitSchemes.map((sch) => {
+                      const auctionWin = memberSchemeDetails.auctionsWon?.find(a => a.scheme_id === sch.id);
+                      return (
+                        <div key={sch.id} className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3 hover:border-blue-300 transition">
+                          
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <span className="font-mono text-xs font-bold text-blue-600">{sch.scheme_code}</span>
+                              <h4 className="text-sm font-bold text-slate-900">{sch.scheme_name}</h4>
+                            </div>
+                            <span className="px-2.5 py-1 bg-blue-50 text-blue-800 border border-blue-200 font-extrabold rounded-lg font-mono text-xs">
+                              Ticket #{sch.ticket_number || 1}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-slate-50 rounded-xl text-xs">
+                            <div>
+                              <span className="text-slate-400 text-[10px] block font-medium">Total Chit Value</span>
+                              <span className="font-bold text-slate-900">{formatCurrency(sch.total_chit_value)}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 text-[10px] block font-medium">Monthly Contribution</span>
+                              <span className="font-bold text-blue-700">{formatCurrency(sch.monthly_contribution)}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 text-[10px] block font-medium">Duration</span>
+                              <span className="font-bold text-slate-900">{sch.duration_months} Months</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 text-[10px] block font-medium">Auction Status</span>
+                              {auctionWin ? (
+                                <span className="font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md border border-emerald-300 text-[10px]">
+                                  🏆 Won Month {auctionWin.month_number}
+                                </span>
+                              ) : (
+                                <span className="font-bold text-slate-600 bg-slate-200/60 px-2 py-0.5 rounded-md text-[10px]">
+                                  ⏳ Active Bidding
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {auctionWin && (
+                            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex justify-between items-center font-medium">
+                              <span>Winner Payout Received in Month {auctionWin.month_number}:</span>
+                              <strong className="font-extrabold text-amber-950 text-sm">{formatCurrency(auctionWin.winner_payout)}</strong>
+                            </div>
+                          )}
+
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <button
+                    onClick={() => {
+                      setSchemesModalMember(null);
+                      setMemberSchemeDetails(null);
+                    }}
+                    className="px-4 py-2 bg-slate-900 text-white rounded-xl font-bold"
+                  >
+                    Close Window
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </Modal>
       )}

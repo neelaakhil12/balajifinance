@@ -11,7 +11,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  Layers
+  Layers,
+  Edit,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function MonthlyAuctionPage() {
@@ -29,9 +32,18 @@ export default function MonthlyAuctionPage() {
   const [notes, setNotes] = useState('');
 
   // Scheme Enrolled Members & Live Calculation Preview
+  const [allMembers, setAllMembers] = useState([]);
   const [schemeDetails, setSchemeDetails] = useState(null);
   const [liveCalc, setLiveCalc] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Edit & Delete Auction Modal States
+  const [editModalAuction, setEditModalAuction] = useState(null);
+  const [editWinnerKey, setEditWinnerKey] = useState('');
+  const [editDiscount, setEditDiscount] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [deleteModalAuction, setDeleteModalAuction] = useState(null);
 
   useEffect(() => {
     fetchInitialData();
@@ -40,12 +52,14 @@ export default function MonthlyAuctionPage() {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [schRes, aucRes] = await Promise.all([
+      const [schRes, aucRes, memRes] = await Promise.all([
         API.get('/chits?status=Active'),
-        API.get('/auctions')
+        API.get('/auctions'),
+        API.get('/members?limit=200')
       ]);
       if (schRes.data.success) setSchemes(schRes.data.schemes);
       if (aucRes.data.success) setAuctions(aucRes.data.auctions);
+      if (memRes.data.success) setAllMembers(memRes.data.members || []);
     } catch (err) {
       console.error('Fetch auction data failed:', err);
       setToast({ type: 'error', message: 'Failed to load schemes or auction history.' });
@@ -76,6 +90,18 @@ export default function MonthlyAuctionPage() {
       console.error('Fetch scheme details failed:', err);
     }
   };
+
+  // Map of ticket_number -> month_number won in this scheme
+  const previousWinnersMap = React.useMemo(() => {
+    const map = {};
+    if (schemeDetails?.auctions) {
+      schemeDetails.auctions.forEach((auc) => {
+        const ticketKey = `${auc.winning_member_id}_${auc.winning_ticket_number || 1}`;
+        map[ticketKey] = auc.month_number;
+      });
+    }
+    return map;
+  }, [schemeDetails]);
 
   // Live Server Financial Calculation Preview Trigger
   useEffect(() => {
@@ -109,11 +135,16 @@ export default function MonthlyAuctionPage() {
 
     try {
       setSubmitting(true);
+      const [memId, ticketNo] = winningMemberId.includes('_')
+        ? winningMemberId.split('_')
+        : [winningMemberId, 1];
+
       const res = await API.post('/auctions', {
         scheme_id: selectedSchemeId,
         month_number: Number(monthNumber),
         auction_date: auctionDate,
-        winning_member_id: winningMemberId,
+        winning_member_id: Number(memId),
+        winning_ticket_number: Number(ticketNo),
         winning_bid_discount: Number(winningBidDiscount),
         notes
       });
@@ -134,6 +165,58 @@ export default function MonthlyAuctionPage() {
       setToast({ type: 'error', message: err.response?.data?.message || 'Failed to record auction.' });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openEditModal = (auc) => {
+    setEditModalAuction(auc);
+    setEditWinnerKey(`${auc.winning_member_id}_${auc.winning_ticket_number || 1}`);
+    setEditDiscount(auc.winning_bid_discount);
+    setEditDate(auc.auction_date);
+    setEditNotes(auc.notes || '');
+  };
+
+  const handleSaveEditAuction = async (e) => {
+    e.preventDefault();
+    if (!editModalAuction) return;
+    try {
+      const [memId, ticketNo] = editWinnerKey.includes('_')
+        ? editWinnerKey.split('_')
+        : [editWinnerKey, 1];
+
+      const res = await API.put(`/auctions/${editModalAuction.id}`, {
+        winning_member_id: Number(memId),
+        winning_ticket_number: Number(ticketNo),
+        winning_bid_discount: Number(editDiscount),
+        auction_date: editDate,
+        notes: editNotes
+      });
+
+      if (res.data.success) {
+        setToast({ type: 'success', message: res.data.message });
+        setEditModalAuction(null);
+        fetchInitialData();
+        if (selectedSchemeId) fetchSchemeMembers(selectedSchemeId);
+      }
+    } catch (err) {
+      console.error('Edit auction failed:', err);
+      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to update auction record.' });
+    }
+  };
+
+  const handleConfirmDeleteAuction = async () => {
+    if (!deleteModalAuction) return;
+    try {
+      const res = await API.delete(`/auctions/${deleteModalAuction.id}`);
+      if (res.data.success) {
+        setToast({ type: 'success', message: res.data.message });
+        setDeleteModalAuction(null);
+        fetchInitialData();
+        if (selectedSchemeId) fetchSchemeMembers(selectedSchemeId);
+      }
+    } catch (err) {
+      console.error('Delete auction failed:', err);
+      setToast({ type: 'error', message: 'Failed to delete auction record.' });
     }
   };
 
@@ -166,19 +249,19 @@ export default function MonthlyAuctionPage() {
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            {/* Chit Scheme Selection */}
+            {/* Scheme Selection */}
             <div>
-              <label className="block font-semibold text-slate-700 mb-1.5">Select Active Scheme *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">Chit Scheme *</label>
               <select
                 required
                 value={selectedSchemeId}
                 onChange={(e) => setSelectedSchemeId(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">-- Choose Chit Scheme --</option>
+                <option value="">-- Select Active Scheme --</option>
                 {schemes.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.scheme_name} ({s.scheme_code}) - {formatCurrency(s.total_chit_value)}
+                    {s.scheme_code} - {s.scheme_name} (₹{s.total_chit_value.toLocaleString('en-IN')})
                   </option>
                 ))}
               </select>
@@ -189,8 +272,9 @@ export default function MonthlyAuctionPage() {
               <label className="block font-semibold text-slate-700 mb-1.5">Auction Month # *</label>
               <input
                 type="number"
-                min={1}
                 required
+                min="1"
+                max={schemeDetails?.number_of_members || 50}
                 value={monthNumber}
                 onChange={(e) => setMonthNumber(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -222,33 +306,134 @@ export default function MonthlyAuctionPage() {
               />
             </div>
 
-            {/* Winning Member Dropdown */}
+            {/* Winning Member & Ticket Dropdown */}
             <div className="sm:col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1.5">Winning Member *</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">Winning Member / Ticket *</label>
               <select
                 required
                 value={winningMemberId}
                 onChange={(e) => setWinningMemberId(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">-- Select Winner from Scheme Roster --</option>
-                {schemeDetails?.enrolledMembers?.map((m) => (
-                  <option key={m.member_id} value={m.member_id}>
-                    Ticket #{m.ticket_number}: {m.name} ({m.member_code}) - Phone: {m.contact_no_1}
-                  </option>
-                ))}
+                {!selectedSchemeId ? (
+                  <option value="">-- Select a Chit Scheme First --</option>
+                ) : (
+                  <>
+                    <option value="">-- Select Winning Ticket for Month {monthNumber} --</option>
+                    
+                    {/* 1. Pre-enrolled Members Roster */}
+                    {schemeDetails?.enrolledMembers?.length > 0 && (
+                      <optgroup label="Enrolled Scheme Roster & Ticket Numbers">
+                        {schemeDetails.enrolledMembers.map((m) => {
+                          const ticketKey = `${m.member_id}_${m.ticket_number || 1}`;
+                          const wonMonth = previousWinnersMap[ticketKey];
+                          return (
+                            <option
+                              key={`enrolled-${m.member_id}-${m.ticket_number}`}
+                              value={ticketKey}
+                              disabled={!!wonMonth}
+                              className={wonMonth ? "text-rose-600 bg-rose-50 font-bold" : "text-emerald-700 font-medium"}
+                              style={wonMonth ? { color: '#dc2626', backgroundColor: '#fef2f2', fontWeight: 'bold' } : {}}
+                            >
+                              Ticket #{m.ticket_number}: {m.name} ({m.member_code}) {wonMonth ? `— 🚫 WON IN MONTH ${wonMonth} (INELIGIBLE)` : '— ✅ Eligible to Bid'}
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    )}
+
+                    {/* 2. Other Registered System Members (Auto-Enroll) */}
+                    {(() => {
+                      const enrolledMemberIds = new Set(schemeDetails?.enrolledMembers?.map(m => Number(m.member_id)) || []);
+                      const unenrolledMembers = allMembers.filter(m => !enrolledMemberIds.has(Number(m.id)));
+                      
+                      if (unenrolledMembers.length === 0) return null;
+                      
+                      return (
+                        <optgroup label="Other Registered Members (Auto-Enroll on Selection)">
+                          {unenrolledMembers.map((m) => {
+                            const wonMonth = previousWinnersMap[m.id];
+                            return (
+                              <option
+                                key={`system-${m.id}`}
+                                value={m.id}
+                                disabled={!!wonMonth}
+                                className={wonMonth ? "text-rose-600 bg-rose-50 font-bold" : "text-blue-700 font-medium"}
+                                style={wonMonth ? { color: '#dc2626', backgroundColor: '#fef2f2', fontWeight: 'bold' } : {}}
+                              >
+                                {m.name} ({m.member_code}) - Phone: {m.contact_no_1} {wonMonth ? `— 🚫 WON IN MONTH ${wonMonth} (INELIGIBLE)` : '— ⚡ Auto-Enroll on Selection'}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      );
+                    })()}
+                  </>
+                )}
               </select>
+
+              {/* Roster Live Bidding Eligibility Grid */}
+              {schemeDetails?.enrolledMembers?.length > 0 && (
+                <div className="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-slate-700 uppercase tracking-wider">
+                      Scheme Roster Bidding Status ({schemeDetails.enrolledMembers.length} Tickets Enrolled)
+                    </span>
+                    <span className="text-slate-500 font-medium">
+                      <span className="text-emerald-700 font-bold">✓ Green = Eligible</span> | <span className="text-rose-600 font-bold">🚫 Red = Previous Winner (Ineligible)</span>
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-xs pt-1">
+                    {schemeDetails.enrolledMembers.map((m) => {
+                      const ticketKey = `${m.member_id}_${m.ticket_number || 1}`;
+                      const wonMonth = previousWinnersMap[ticketKey];
+                      return (
+                        <div
+                          key={`badge-${ticketKey}`}
+                          className={`px-2.5 py-1.5 rounded-lg border font-bold text-[11px] flex items-center gap-1.5 shadow-2xs ${
+                            wonMonth
+                              ? 'bg-rose-100 text-rose-900 border-rose-300 ring-1 ring-rose-400/50'
+                              : 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                          }`}
+                        >
+                          <span className="font-mono text-[10px] bg-white/70 px-1 py-0.5 rounded border border-slate-200">T#{m.ticket_number}</span>
+                          <span>{m.name}</span>
+                          {wonMonth ? (
+                            <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.5 rounded font-extrabold ml-1 uppercase shadow-xs">
+                              🚫 WON MONTH {wonMonth} (INELIGIBLE)
+                            </span>
+                          ) : (
+                            <span className="bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-extrabold ml-1 uppercase shadow-xs">
+                              ✓ ELIGIBLE
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {!selectedSchemeId && (
+                <p className="mt-1 text-[11px] text-slate-500 italic">Please select an active chit scheme above to view member options.</p>
+              )}
+              {selectedSchemeId && (
+                <p className="mt-1 text-[11px] text-slate-600 font-medium flex items-center gap-1">
+                  <span>💡 Tip: You can select an enrolled member or choose any registered member from the directory to auto-enroll them on auction recording.</span>
+                </p>
+              )}
             </div>
 
             {/* Notes */}
             <div className="sm:col-span-2">
-              <label className="block font-semibold text-slate-700 mb-1.5">Auction Notes / Remarks</label>
+              <label className="block font-semibold text-slate-700 mb-1.5">Auction Notes / Minutes</label>
               <input
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Optional notes regarding auction bidding"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Optional remarks (e.g., Highest bidder after 15 rounds)"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
@@ -343,6 +528,7 @@ export default function MonthlyAuctionPage() {
                 <th className="p-3.5">Winner Payout</th>
                 <th className="p-3.5">Dividend / Member</th>
                 <th className="p-3.5">Next Payable</th>
+                <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
 
@@ -352,18 +538,163 @@ export default function MonthlyAuctionPage() {
                   <td className="p-3.5 font-bold text-slate-900">{auc.scheme_name}</td>
                   <td className="p-3.5 font-bold text-blue-600">Month {auc.month_number}</td>
                   <td className="p-3.5 text-slate-600">{formatDate(auc.auction_date)}</td>
-                  <td className="p-3.5 font-bold text-slate-800">{auc.winner_name} ({auc.winner_code})</td>
+                  <td className="p-3.5 font-bold text-slate-800">
+                    {auc.winner_name} ({auc.winner_code})
+                    <span className="font-mono text-[10px] text-blue-600 block">Ticket #{auc.winning_ticket_number || 1}</span>
+                  </td>
                   <td className="p-3.5 font-semibold text-amber-600">-{formatCurrency(auc.winning_bid_discount)}</td>
                   <td className="p-3.5 text-slate-600">{formatCurrency(auc.foreman_commission)}</td>
                   <td className="p-3.5 font-extrabold text-emerald-700">{formatCurrency(auc.winner_payout)}</td>
                   <td className="p-3.5 font-bold text-blue-700">{formatCurrency(auc.dividend_per_member)}</td>
                   <td className="p-3.5 font-bold text-slate-900">{formatCurrency(auc.next_month_payable)}</td>
+                  <td className="p-3.5 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        onClick={() => openEditModal(auc)}
+                        className="p-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition"
+                        title="Edit Auction Record"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteModalAuction(auc)}
+                        className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white transition"
+                        title="Delete Auction Record"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Edit Auction Modal */}
+      {editModalAuction && (
+        <Modal
+          isOpen={!!editModalAuction}
+          onClose={() => setEditModalAuction(null)}
+          title={`Edit Auction Record: ${editModalAuction.scheme_name} (Month ${editModalAuction.month_number})`}
+        >
+          <form onSubmit={handleSaveEditAuction} className="space-y-4 text-xs">
+            <div className="p-3 bg-slate-50 border rounded-xl space-y-1 font-semibold text-slate-700">
+              <p>Scheme: <strong>{editModalAuction.scheme_name}</strong> ({editModalAuction.scheme_code})</p>
+              <p>Auction Month: <strong>Month {editModalAuction.month_number}</strong></p>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Winning Member & Ticket *</label>
+              <select
+                required
+                value={editWinnerKey}
+                onChange={(e) => setEditWinnerKey(e.target.value)}
+                className="w-full px-3 py-2 border rounded-xl font-medium"
+              >
+                {allMembers.map((m) => (
+                  <option key={`edit-mem-${m.id}`} value={`${m.id}_1`}>
+                    {m.name} ({m.member_code}) - Phone: {m.contact_no_1}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Winning Bid Discount (₹) *</label>
+              <input
+                type="number"
+                required
+                value={editDiscount}
+                onChange={(e) => setEditDiscount(e.target.value)}
+                className="w-full px-3 py-2 border rounded-xl font-bold text-amber-700"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Auction Date *</label>
+              <input
+                type="date"
+                required
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="w-full px-3 py-2 border rounded-xl"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Notes / Remarks</label>
+              <input
+                type="text"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Remarks"
+                className="w-full px-3 py-2 border rounded-xl"
+              />
+            </div>
+
+            <div className="pt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditModalAuction(null)}
+                className="px-4 py-2 border rounded-xl font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold shadow-md"
+              >
+                Update Auction
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Delete Auction Confirmation Modal */}
+      {deleteModalAuction && (
+        <Modal
+          isOpen={!!deleteModalAuction}
+          onClose={() => setDeleteModalAuction(null)}
+          title={`Delete Auction: Month ${deleteModalAuction.month_number}`}
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-rose-900 font-bold">Are you sure you want to delete this auction record?</p>
+                <p className="text-rose-700">
+                  Scheme: <strong>{deleteModalAuction.scheme_name}</strong> (Month {deleteModalAuction.month_number})
+                  <br />
+                  Winner: <strong>{deleteModalAuction.winner_name}</strong>
+                </p>
+                <p className="text-rose-600 font-semibold pt-1">
+                  ⚠️ Deleting this auction will revert the dividend calculations and remove the monthly payment dues generated for this month. The winning member will become ELIGIBLE to bid again!
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteModalAuction(null)}
+                className="px-4 py-2 border rounded-xl font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteAuction}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold shadow-md"
+              >
+                Delete Auction
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
     </div>
   );

@@ -463,8 +463,7 @@ if (isNative && typeof db.exec === 'function') {
         ticket_number INTEGER NOT NULL,
         enrolled_at TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'Active',
-        UNIQUE(scheme_id, ticket_number),
-        UNIQUE(scheme_id, member_id)
+        UNIQUE(scheme_id, ticket_number)
       );
       CREATE TABLE IF NOT EXISTS auctions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -472,6 +471,7 @@ if (isNative && typeof db.exec === 'function') {
         month_number INTEGER NOT NULL,
         auction_date TEXT NOT NULL,
         winning_member_id INTEGER NOT NULL,
+        winning_ticket_number INTEGER DEFAULT 1,
         winning_bid_discount REAL NOT NULL,
         foreman_commission REAL NOT NULL,
         winner_payout REAL NOT NULL,
@@ -486,6 +486,7 @@ if (isNative && typeof db.exec === 'function') {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         scheme_id INTEGER NOT NULL,
         member_id INTEGER NOT NULL,
+        ticket_number INTEGER DEFAULT 1,
         month_number INTEGER NOT NULL,
         base_contribution REAL NOT NULL,
         dividend_applied REAL NOT NULL DEFAULT 0,
@@ -497,13 +498,14 @@ if (isNative && typeof db.exec === 'function') {
         status TEXT NOT NULL DEFAULT 'Pending',
         notes TEXT,
         created_at TEXT NOT NULL,
-        UNIQUE(scheme_id, member_id, month_number)
+        UNIQUE(scheme_id, member_id, ticket_number, month_number)
       );
       CREATE TABLE IF NOT EXISTS dividends (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         auction_id INTEGER NOT NULL,
         scheme_id INTEGER NOT NULL,
         member_id INTEGER NOT NULL,
+        ticket_number INTEGER DEFAULT 1,
         month_number INTEGER NOT NULL,
         dividend_amount REAL NOT NULL,
         created_at TEXT NOT NULL
@@ -518,6 +520,47 @@ if (isNative && typeof db.exec === 'function') {
         timestamp TEXT NOT NULL
       );
     `);
+
+    // Dynamic SQLite Table Migrations for Multi-Ticket Support
+    try {
+      // Recreate chit_enrollments if it still has old UNIQUE(scheme_id, member_id) constraint
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS chit_enrollments_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          scheme_id INTEGER NOT NULL,
+          member_id INTEGER NOT NULL,
+          ticket_number INTEGER NOT NULL,
+          enrolled_at TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'Active',
+          UNIQUE(scheme_id, ticket_number)
+        );
+        INSERT OR IGNORE INTO chit_enrollments_new (id, scheme_id, member_id, ticket_number, enrolled_at, status)
+        SELECT id, scheme_id, member_id, ticket_number, enrolled_at, status FROM chit_enrollments;
+        DROP TABLE IF EXISTS chit_enrollments;
+        ALTER TABLE chit_enrollments_new RENAME TO chit_enrollments;
+      `);
+    } catch (e) {}
+
+    try {
+      const pmtCols = db.prepare("PRAGMA table_info(monthly_payments)").all();
+      if (!pmtCols.some(c => c.name === 'ticket_number')) {
+        db.exec("ALTER TABLE monthly_payments ADD COLUMN ticket_number INTEGER DEFAULT 1");
+      }
+    } catch (e) {}
+
+    try {
+      const aucCols = db.prepare("PRAGMA table_info(auctions)").all();
+      if (!aucCols.some(c => c.name === 'winning_ticket_number')) {
+        db.exec("ALTER TABLE auctions ADD COLUMN winning_ticket_number INTEGER DEFAULT 1");
+      }
+    } catch (e) {}
+
+    try {
+      const divCols = db.prepare("PRAGMA table_info(dividends)").all();
+      if (!divCols.some(c => c.name === 'ticket_number')) {
+        db.exec("ALTER TABLE dividends ADD COLUMN ticket_number INTEGER DEFAULT 1");
+      }
+    } catch (e) {}
 
     const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
     if (userCount === 0) {

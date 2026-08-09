@@ -76,11 +76,25 @@ router.get('/', authenticateToken, (req, res) => {
 
     const members = db.prepare(query).all(...params);
 
-    // Process masked aadhaar
-    const processedMembers = members.map(m => ({
-      ...m,
-      masked_aadhaar: maskAadhaar(m.aadhaar_no)
-    }));
+    // Process masked aadhaar & scheme enrollments
+    const processedMembers = members.map(m => {
+      const enrollments = db.prepare(`
+        SELECT ce.ticket_number, cs.id as scheme_id, cs.scheme_code, cs.scheme_name, cs.total_chit_value, cs.monthly_contribution
+        FROM chit_enrollments ce
+        JOIN chit_schemes cs ON ce.scheme_id = cs.id
+        WHERE ce.member_id = ?
+      `).all(m.id);
+
+      const uniqueSchemes = new Set(enrollments.map(e => e.scheme_id));
+
+      return {
+        ...m,
+        masked_aadhaar: maskAadhaar(m.aadhaar_no),
+        schemes_count: uniqueSchemes.size,
+        tickets_count: enrollments.length,
+        enrollments
+      };
+    });
 
     return res.json({
       success: true,

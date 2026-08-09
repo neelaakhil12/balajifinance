@@ -44,7 +44,7 @@ const clientDistPath = path.join(__dirname, '../client/dist');
 app.use(express.static(clientDistPath));
 
 // Fallback for React SPA Routing
-app.get('*', (req, res, next) => {
+app.use((req, res, next) => {
   if (req.path.startsWith('/api')) return next();
   res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
     if (err) next();
@@ -62,7 +62,7 @@ app.use((err, req, res, next) => {
 
 // Start Server if run directly
 if (require.main === module || !process.env.VERCEL) {
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`=======================================================`);
     console.log(`BALAJI SAVINGS & FINANCE - Server Running on Port ${PORT}`);
     console.log(`REST API Ready at http://localhost:${PORT}/api`);

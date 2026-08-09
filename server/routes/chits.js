@@ -175,12 +175,6 @@ router.post('/:id/enroll', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, message: 'This chit scheme has reached maximum member capacity.' });
     }
 
-    // Check if member already enrolled
-    const existingEnrollment = db.prepare('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND member_id = ?').get(schemeId, member_id);
-    if (existingEnrollment) {
-      return res.status(400).json({ success: false, message: 'Member is already enrolled in this chit scheme.' });
-    }
-
     // Determine ticket number
     let ticketNo = ticket_number ? parseInt(ticket_number, 10) : (currentEnrolled + 1);
 

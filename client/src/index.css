@@ -26,7 +26,7 @@
   background: #64748B;
 }
 
-/* Print Styles for Financial Reports */
+/* Print Styles for Financial Reports & Receipts */
 @media print {
   body {
     background: #FFFFFF !important;
@@ -38,10 +38,18 @@
   .print-only {
     display: block !important;
   }
-  .print-content {
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
+  body * {
+    visibility: hidden;
+  }
+  #printable-receipt-card, #printable-receipt-card * {
+    visibility: visible;
+  }
+  #printable-receipt-card {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none !important;
     box-shadow: none !important;
   }
 }

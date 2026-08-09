@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import API from '../services/api';
 import Toast from '../components/common/Toast';
 import Modal from '../components/common/Modal';
+import ReceiptModal from '../components/common/ReceiptModal';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import {
   CreditCard,
@@ -11,7 +12,11 @@ import {
   Clock,
   AlertCircle,
   IndianRupee,
-  DollarSign
+  FileText,
+  Printer,
+  Wallet,
+  TrendingUp,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function MonthlyPaymentsPage() {
@@ -26,8 +31,9 @@ export default function MonthlyPaymentsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
 
-  // Record Payment Modal
+  // Record Payment Modal & Receipt Modal State
   const [recordModalPayment, setRecordModalPayment] = useState(null);
+  const [receiptModalPayment, setReceiptModalPayment] = useState(null);
   const [payAmount, setPayAmount] = useState('');
   const [payMode, setPayMode] = useState('UPI');
   const [payRefNo, setPayRefNo] = useState('');
@@ -73,6 +79,15 @@ export default function MonthlyPaymentsPage() {
     }
   };
 
+  // High-level financial summary
+  const summaryMetrics = React.useMemo(() => {
+    const totalDue = payments.reduce((acc, p) => acc + (Number(p.net_amount_due) || 0), 0);
+    const totalPaid = payments.reduce((acc, p) => acc + (Number(p.amount_paid) || 0), 0);
+    const totalBalance = Math.max(0, totalDue - totalPaid);
+    const collectionRate = totalDue > 0 ? Math.round((totalPaid / totalDue) * 100) : 0;
+    return { totalDue, totalPaid, totalBalance, collectionRate };
+  }, [payments]);
+
   const openRecordModal = (pmt) => {
     setRecordModalPayment(pmt);
     setPayAmount(pmt.net_amount_due);
@@ -83,21 +98,33 @@ export default function MonthlyPaymentsPage() {
 
   const handleSavePayment = async (e) => {
     e.preventDefault();
-    if (!recordModalPayment || !payAmount) return;
+    if (!recordModalPayment || payAmount === '') return;
 
     try {
       setSubmitting(true);
+      const amtPaid = Number(payAmount);
       const res = await API.post('/payments/record', {
         payment_id: recordModalPayment.id,
-        amount_paid: Number(payAmount),
+        amount_paid: amtPaid,
         payment_mode: payMode,
         reference_no: payRefNo,
         notes: payNotes
       });
 
       if (res.data.success) {
+        const updatedPayment = {
+          ...recordModalPayment,
+          amount_paid: amtPaid,
+          payment_mode: payMode,
+          reference_no: payRefNo,
+          payment_date: new Date().toISOString().split('T')[0],
+          status: amtPaid >= recordModalPayment.net_amount_due ? 'Paid' : amtPaid > 0 ? 'Partially Paid' : 'Pending'
+        };
+
         setToast({ type: 'success', message: res.data.message });
         setRecordModalPayment(null);
+        // Automatically open Printable Receipt Modal
+        setReceiptModalPayment(updatedPayment);
         fetchPayments();
       }
     } catch (err) {
@@ -117,11 +144,47 @@ export default function MonthlyPaymentsPage() {
         <div>
           <div className="flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-blue-600" />
-            <h2 className="text-xl font-bold text-slate-900">Monthly Member Payments</h2>
+            <h2 className="text-xl font-bold text-slate-900">Monthly Member Payments & Receipts</h2>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Track member contributions, net due after auction dividend, and record payments.
+            Track member monthly dues, collected payments, outstanding balances, and generate official payment receipts.
           </p>
+        </div>
+      </div>
+
+      {/* Financial Summary Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+            <Wallet className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Net Dues</p>
+            <p className="text-lg font-extrabold text-slate-900">{formatCurrency(summaryMetrics.totalDue)}</p>
+            <p className="text-[10px] text-slate-500">{payments.length} total monthly schedules</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+            <TrendingUp className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Paid / Collected</p>
+            <p className="text-lg font-extrabold text-emerald-600">{formatCurrency(summaryMetrics.totalPaid)}</p>
+            <p className="text-[10px] text-emerald-700 font-semibold">{summaryMetrics.collectionRate}% Collection Rate</p>
+          </div>
+        </div>
+
+        <div className="bg-white p-4.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Outstanding Balance Due</p>
+            <p className="text-lg font-extrabold text-rose-600">{formatCurrency(summaryMetrics.totalBalance)}</p>
+            <p className="text-[10px] text-slate-500">Pending & Partially Paid</p>
+          </div>
         </div>
       </div>
 
@@ -184,74 +247,100 @@ export default function MonthlyPaymentsPage() {
                 <th className="p-3.5">Scheme & Month</th>
                 <th className="p-3.5">Member Details</th>
                 <th className="p-3.5">Base Monthly</th>
-                <th className="p-3.5">Dividend Applied</th>
-                <th className="p-3.5">Net Payable</th>
+                <th className="p-3.5">Dividend</th>
+                <th className="p-3.5">Net Due</th>
                 <th className="p-3.5">Amount Paid</th>
-                <th className="p-3.5">Payment Date & Ref</th>
+                <th className="p-3.5">Balance Due</th>
+                <th className="p-3.5">Date & Ref</th>
                 <th className="p-3.5">Status</th>
-                <th className="p-3.5 text-right">Action</th>
+                <th className="p-3.5 text-right">Actions</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-500">
+                  <td colSpan={10} className="py-8 text-center text-slate-500">
                     Loading monthly payment ledger...
                   </td>
                 </tr>
               ) : payments.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-8 text-center text-slate-500">
+                  <td colSpan={10} className="py-8 text-center text-slate-500">
                     No payment records match filter options.
                   </td>
                 </tr>
               ) : (
-                payments.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-50">
-                    <td className="p-3.5">
-                      <span className="font-bold text-slate-900 block">{p.scheme_name}</span>
-                      <span className="font-bold text-blue-600 font-mono">Month {p.month_number}</span>
-                    </td>
-                    <td className="p-3.5">
-                      <span className="font-bold text-slate-900 block">{p.member_name}</span>
-                      <span className="text-slate-500 font-mono">{p.member_code} • {p.contact_no_1}</span>
-                    </td>
-                    <td className="p-3.5 text-slate-700 font-semibold">{formatCurrency(p.base_contribution)}</td>
-                    <td className="p-3.5 text-emerald-600 font-semibold">-{formatCurrency(p.dividend_applied)}</td>
-                    <td className="p-3.5 font-extrabold text-slate-900">{formatCurrency(p.net_amount_due)}</td>
-                    <td className="p-3.5 font-bold text-emerald-700">{formatCurrency(p.amount_paid)}</td>
-                    <td className="p-3.5 text-slate-600">
-                      {p.payment_date ? (
-                        <>
-                          <span className="font-semibold block">{formatDate(p.payment_date)}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{p.payment_mode} ({p.reference_no || 'No Ref'})</span>
-                        </>
-                      ) : (
-                        <span className="text-slate-400 font-italic">Unpaid</span>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                        p.status === 'Paid'
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                          : p.status === 'Partially Paid'
-                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                          : 'bg-rose-100 text-rose-800 border border-rose-300'
-                      }`}>
-                        {p.status}
-                      </span>
-                    </td>
-                    <td className="p-3.5 text-right">
-                      <button
-                        onClick={() => openRecordModal(p)}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-xs"
-                      >
-                        Record Payment
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                payments.map((p) => {
+                  const balanceDue = Math.max(0, Number(p.net_amount_due) - Number(p.amount_paid));
+                  return (
+                    <tr key={p.id} className="hover:bg-slate-50">
+                      <td className="p-3.5">
+                        <span className="font-bold text-slate-900 block">{p.scheme_name}</span>
+                        <span className="font-bold text-blue-600 font-mono">Month {p.month_number}</span>
+                      </td>
+                      <td className="p-3.5">
+                        <span className="font-bold text-slate-900 block">{p.member_name}</span>
+                        <span className="text-slate-500 font-mono">{p.member_code} • {p.contact_no_1}</span>
+                      </td>
+                      <td className="p-3.5 text-slate-700 font-semibold">{formatCurrency(p.base_contribution)}</td>
+                      <td className="p-3.5 text-emerald-600 font-semibold">-{formatCurrency(p.dividend_applied)}</td>
+                      <td className="p-3.5 font-extrabold text-slate-900">{formatCurrency(p.net_amount_due)}</td>
+                      <td className="p-3.5 font-bold text-emerald-700">{formatCurrency(p.amount_paid)}</td>
+                      <td className="p-3.5">
+                        {balanceDue > 0 ? (
+                          <span className="font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                            {formatCurrency(balanceDue)} Due
+                          </span>
+                        ) : (
+                          <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            ✓ Fully Paid
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3.5 text-slate-600">
+                        {p.payment_date ? (
+                          <>
+                            <span className="font-semibold block">{formatDate(p.payment_date)}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">{p.payment_mode} ({p.reference_no || 'No Ref'})</span>
+                          </>
+                        ) : (
+                          <span className="text-slate-400 italic">Unpaid</span>
+                        )}
+                      </td>
+                      <td className="p-3.5">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          p.status === 'Paid'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : p.status === 'Partially Paid'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : 'bg-rose-100 text-rose-800 border border-rose-300'
+                        }`}>
+                          {p.status}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            onClick={() => openRecordModal(p)}
+                            className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-xs text-[11px]"
+                          >
+                            Record Payment
+                          </button>
+
+                          <button
+                            onClick={() => setReceiptModalPayment(p)}
+                            title="Generate Official Receipt / Invoice"
+                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg shadow-xs text-[11px] flex items-center gap-1"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                            Receipt
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -333,11 +422,20 @@ export default function MonthlyPaymentsPage() {
                 disabled={submitting}
                 className="px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold shadow-md"
               >
-                {submitting ? 'Recording...' : 'Submit Payment'}
+                {submitting ? 'Recording...' : 'Submit & Generate Receipt'}
               </button>
             </div>
           </form>
         </Modal>
+      )}
+
+      {/* Official Receipt & Invoice Modal */}
+      {receiptModalPayment && (
+        <ReceiptModal
+          isOpen={!!receiptModalPayment}
+          onClose={() => setReceiptModalPayment(null)}
+          payment={receiptModalPayment}
+        />
       )}
 
     </div>
