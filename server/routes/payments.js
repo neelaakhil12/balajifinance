@@ -68,7 +68,11 @@ router.post('/record', authenticateToken, (req, res) => {
       payment_date,
       payment_mode = 'UPI',
       reference_no,
-      notes
+      notes,
+      proof_image_data,
+      bank_name,
+      cheque_no,
+      cheque_date
     } = req.body;
 
     if (amount_paid === undefined || amount_paid === null) {
@@ -100,7 +104,7 @@ router.post('/record', authenticateToken, (req, res) => {
 
     db.prepare(`
       UPDATE monthly_payments
-      SET amount_paid = ?, payment_date = ?, payment_mode = ?, reference_no = ?, status = ?, notes = ?
+      SET amount_paid = ?, payment_date = ?, payment_mode = ?, reference_no = ?, status = ?, notes = ?, proof_image_data = ?, bank_name = ?, cheque_no = ?, cheque_date = ?
       WHERE id = ?
     `).run(
       paidVal,
@@ -109,6 +113,10 @@ router.post('/record', authenticateToken, (req, res) => {
       reference_no ? reference_no.trim() : null,
       newStatus,
       notes || targetPayment.notes || '',
+      proof_image_data || targetPayment.proof_image_data || null,
+      bank_name || targetPayment.bank_name || null,
+      cheque_no || targetPayment.cheque_no || null,
+      cheque_date || targetPayment.cheque_date || null,
       targetPayment.id
     );
 

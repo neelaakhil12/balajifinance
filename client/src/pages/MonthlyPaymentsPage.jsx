@@ -38,6 +38,11 @@ export default function MonthlyPaymentsPage() {
   const [payMode, setPayMode] = useState('UPI');
   const [payRefNo, setPayRefNo] = useState('');
   const [payNotes, setPayNotes] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [chequeNo, setChequeNo] = useState('');
+  const [chequeDate, setChequeDate] = useState('');
+  const [proofImageData, setProofImageData] = useState('');
+  const [proofPreviewUrl, setProofPreviewUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -88,11 +93,28 @@ export default function MonthlyPaymentsPage() {
     return { totalDue, totalPaid, totalBalance, collectionRate };
   }, [payments]);
 
+  const handleProofFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProofImageData(reader.result);
+        setProofPreviewUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const openRecordModal = (pmt) => {
     setRecordModalPayment(pmt);
     setPayAmount(pmt.net_amount_due);
     setPayMode('UPI');
     setPayRefNo(`UPI/${Date.now().toString().slice(-6)}`);
+    setBankName('');
+    setChequeNo('');
+    setChequeDate(new Date().toISOString().split('T')[0]);
+    setProofImageData('');
+    setProofPreviewUrl('');
     setPayNotes('');
   };
 
@@ -108,7 +130,11 @@ export default function MonthlyPaymentsPage() {
         amount_paid: amtPaid,
         payment_mode: payMode,
         reference_no: payRefNo,
-        notes: payNotes
+        notes: payNotes,
+        proof_image_data: proofImageData,
+        bank_name: bankName,
+        cheque_no: chequeNo,
+        cheque_date: chequeDate
       });
 
       if (res.data.success) {
@@ -117,6 +143,10 @@ export default function MonthlyPaymentsPage() {
           amount_paid: amtPaid,
           payment_mode: payMode,
           reference_no: payRefNo,
+          bank_name: bankName,
+          cheque_no: chequeNo,
+          cheque_date: chequeDate,
+          proof_image_data: proofImageData,
           payment_date: new Date().toISOString().split('T')[0],
           status: amtPaid >= recordModalPayment.net_amount_due ? 'Paid' : amtPaid > 0 ? 'Partially Paid' : 'Pending'
         };
@@ -377,26 +407,178 @@ export default function MonthlyPaymentsPage() {
               <label className="block font-semibold text-slate-700 mb-1">Payment Mode *</label>
               <select
                 value={payMode}
-                onChange={(e) => setPayMode(e.target.value)}
-                className="w-full px-3 py-2 border rounded-xl"
+                onChange={(e) => {
+                  const mode = e.target.value;
+                  setPayMode(mode);
+                  if (mode === 'UPI') setPayRefNo(`UPI/${Date.now().toString().slice(-6)}`);
+                  else if (mode === 'Cheque') setPayRefNo(`CHK-${Date.now().toString().slice(-6)}`);
+                  else setPayRefNo('');
+                }}
+                className="w-full px-3 py-2 border rounded-xl font-bold"
               >
-                <option value="UPI">UPI / GPay / PhonePe</option>
-                <option value="Cash">Cash</option>
-                <option value="Bank Transfer">Bank Transfer (NEFT/IMPS)</option>
-                <option value="Cheque">Cheque</option>
+                <option value="UPI">📱 UPI / GPay / PhonePe / Paytm</option>
+                <option value="Bank Transfer">🏦 Bank Transfer (NEFT / RTGS / IMPS)</option>
+                <option value="Cheque">📜 Cheque Payment</option>
+                <option value="Cash">💵 Cash</option>
               </select>
             </div>
 
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Reference No. / UTR</label>
-              <input
-                type="text"
-                value={payRefNo}
-                onChange={(e) => setPayRefNo(e.target.value)}
-                placeholder="e.g. UPI/20260120/9981"
-                className="w-full px-3 py-2 border rounded-xl font-mono"
-              />
-            </div>
+            {/* Dynamic Payment Mode Specific Fields */}
+            {payMode === 'UPI' && (
+              <div className="space-y-3 bg-blue-50/60 p-3 rounded-xl border border-blue-200">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">UPI Transaction UTR / Ref No. *</label>
+                  <input
+                    type="text"
+                    required
+                    value={payRefNo}
+                    onChange={(e) => setPayRefNo(e.target.value)}
+                    placeholder="e.g. UPI/664239812 or 12-digit UTR"
+                    className="w-full px-3 py-2 border rounded-xl font-mono text-xs font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Upload UPI Payment Screenshot *</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProofFileChange}
+                    className="w-full px-3 py-1.5 border rounded-xl text-xs bg-white cursor-pointer"
+                  />
+                  {proofPreviewUrl && (
+                    <div className="mt-2 p-2 border rounded-xl bg-white flex items-center gap-3 shadow-2xs">
+                      <img src={proofPreviewUrl} alt="UPI Payment Proof" className="w-14 h-14 object-cover rounded-lg border shadow-2xs" />
+                      <div className="text-[11px]">
+                        <span className="font-bold text-emerald-700 block">✓ UPI Payment Screenshot Selected</span>
+                        <span className="text-slate-500 block text-[10px]">Will be saved with transaction receipt</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {payMode === 'Bank Transfer' && (
+              <div className="space-y-3 bg-blue-50/60 p-3 rounded-xl border border-blue-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Payer Bank Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      placeholder="e.g. HDFC Bank, State Bank of India"
+                      className="w-full px-3 py-2 border rounded-xl text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Bank UTR / Transaction Ref No. *</label>
+                    <input
+                      type="text"
+                      required
+                      value={payRefNo}
+                      onChange={(e) => setPayRefNo(e.target.value)}
+                      placeholder="e.g. N20261984210"
+                      className="w-full px-3 py-2 border rounded-xl font-mono text-xs font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Upload Bank Transfer Receipt Proof</label>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={handleProofFileChange}
+                    className="w-full px-3 py-1.5 border rounded-xl text-xs bg-white cursor-pointer"
+                  />
+                  {proofPreviewUrl && (
+                    <div className="mt-2 p-2 border rounded-xl bg-white flex items-center gap-3 shadow-2xs">
+                      <img src={proofPreviewUrl} alt="Bank Proof" className="w-14 h-14 object-cover rounded-lg border shadow-2xs" />
+                      <div className="text-[11px]">
+                        <span className="font-bold text-emerald-700 block">✓ Bank Transfer Proof Uploaded</span>
+                        <span className="text-slate-500 block text-[10px]">Attached to payment record</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {payMode === 'Cheque' && (
+              <div className="space-y-3 bg-amber-50/60 p-3 rounded-xl border border-amber-200">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Cheque Number *</label>
+                    <input
+                      type="text"
+                      required
+                      value={chequeNo}
+                      onChange={(e) => setChequeNo(e.target.value)}
+                      placeholder="e.g. CHK-492104"
+                      className="w-full px-3 py-2 border rounded-xl font-mono font-bold text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Drawee Bank Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      placeholder="e.g. ICICI Bank Main Branch"
+                      className="w-full px-3 py-2 border rounded-xl text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Cheque Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={chequeDate}
+                      onChange={(e) => setChequeDate(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-xl text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Upload Cheque Leaf Screenshot / Photo *</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleProofFileChange}
+                    className="w-full px-3 py-1.5 border rounded-xl text-xs bg-white cursor-pointer"
+                  />
+                  {proofPreviewUrl && (
+                    <div className="mt-2 p-2 border rounded-xl bg-white flex items-center gap-3 shadow-2xs">
+                      <img src={proofPreviewUrl} alt="Cheque Leaf Photo" className="w-14 h-14 object-cover rounded-lg border shadow-2xs" />
+                      <div className="text-[11px]">
+                        <span className="font-bold text-amber-800 block">✓ Cheque Leaf Screenshot Selected</span>
+                        <span className="text-slate-500 block text-[10px]">Attached to receipt & records</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {payMode === 'Cash' && (
+              <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Received By / Staff Name</label>
+                  <input
+                    type="text"
+                    value={payRefNo}
+                    onChange={(e) => setPayRefNo(e.target.value)}
+                    placeholder="e.g. Counter Cashier Staff Name"
+                    className="w-full px-3 py-2 border rounded-xl text-xs"
+                  />
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Payment Notes</label>
@@ -405,7 +587,7 @@ export default function MonthlyPaymentsPage() {
                 value={payNotes}
                 onChange={(e) => setPayNotes(e.target.value)}
                 placeholder="Optional remarks"
-                className="w-full px-3 py-2 border rounded-xl"
+                className="w-full px-3 py-2 border rounded-xl text-xs"
               />
             </div>
 

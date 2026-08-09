@@ -309,6 +309,32 @@ export default function ReceiptModal({ isOpen, onClose, payment }) {
               {amountInWords}
             </p>
 
+            {/* Payment Mode & Reference / Proof Details */}
+            <div className="mt-2 pt-1 border-t border-dashed border-slate-900 text-[10px] space-y-0.5">
+              <div className="flex justify-between">
+                <span>Mode: <strong className="uppercase">{payment.payment_mode || 'UPI'}</strong></span>
+                {payment.reference_no && (
+                  <span className="font-mono">Ref: <strong>{payment.reference_no}</strong></span>
+                )}
+              </div>
+              {payment.bank_name && (
+                <p>Bank: <strong>{payment.bank_name}</strong></p>
+              )}
+              {payment.cheque_no && (
+                <p>Cheque #: <strong>{payment.cheque_no}</strong> {payment.cheque_date ? `(${payment.cheque_date})` : ''}</p>
+              )}
+              {payment.proof_image_data && (
+                <div className="mt-2 text-center">
+                  <span className="text-[9px] text-slate-500 font-bold block mb-0.5">ATTACHED PAYMENT PROOF SCREENSHOT</span>
+                  <img
+                    src={payment.proof_image_data}
+                    alt="Payment Proof Screenshot"
+                    className="w-full max-h-36 object-contain rounded-lg border border-slate-300"
+                  />
+                </div>
+              )}
+            </div>
+
             {/* Footer Sign */}
             <div className="mt-4 text-right font-bold text-[10px]">
               <p>For BALAJI SAVINGS & FINANCE</p>

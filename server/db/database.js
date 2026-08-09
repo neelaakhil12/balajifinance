@@ -546,6 +546,18 @@ if (isNative && typeof db.exec === 'function') {
       if (!pmtCols.some(c => c.name === 'ticket_number')) {
         db.exec("ALTER TABLE monthly_payments ADD COLUMN ticket_number INTEGER DEFAULT 1");
       }
+      if (!pmtCols.some(c => c.name === 'proof_image_data')) {
+        db.exec("ALTER TABLE monthly_payments ADD COLUMN proof_image_data TEXT");
+      }
+      if (!pmtCols.some(c => c.name === 'bank_name')) {
+        db.exec("ALTER TABLE monthly_payments ADD COLUMN bank_name TEXT");
+      }
+      if (!pmtCols.some(c => c.name === 'cheque_no')) {
+        db.exec("ALTER TABLE monthly_payments ADD COLUMN cheque_no TEXT");
+      }
+      if (!pmtCols.some(c => c.name === 'cheque_date')) {
+        db.exec("ALTER TABLE monthly_payments ADD COLUMN cheque_date TEXT");
+      }
     } catch (e) {}
 
     try {
