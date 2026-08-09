@@ -468,11 +468,20 @@ export default function MembersPage() {
                 <div className="space-y-3">
                   <h4 className="font-bold text-slate-900 uppercase tracking-wider text-[11px]">Enrolled Chit Schemes Breakdown</h4>
                   
-                  <div className="grid grid-cols-1 gap-3">
+                  <div className="grid grid-cols-1 gap-4">
                     {memberSchemeDetails.chitSchemes.map((sch) => {
                       const auctionWin = memberSchemeDetails.auctionsWon?.find(a => a.scheme_id === sch.id);
+                      const schPayments = (memberSchemeDetails.payments || []).filter(p =>
+                        Number(p.scheme_id) === Number(sch.id) &&
+                        (!p.ticket_number || Number(p.ticket_number) === Number(sch.ticket_number || 1))
+                      );
+                      const paidMonthsCount = schPayments.filter(p => p.status === 'Paid').length;
+                      const duration = sch.duration_months || 20;
+                      const remainingMonthsCount = Math.max(0, duration - paidMonthsCount);
+                      const totalAmountPaid = schPayments.reduce((acc, p) => acc + (p.amount_paid || 0), 0);
+
                       return (
-                        <div key={sch.id} className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-3 hover:border-blue-300 transition">
+                        <div key={sch.id} className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-4 hover:border-blue-300 transition">
                           
                           <div className="flex items-start justify-between">
                             <div>
@@ -490,12 +499,12 @@ export default function MembersPage() {
                               <span className="font-bold text-slate-900">{formatCurrency(sch.total_chit_value)}</span>
                             </div>
                             <div>
-                              <span className="text-slate-400 text-[10px] block font-medium">Monthly Contribution</span>
-                              <span className="font-bold text-blue-700">{formatCurrency(sch.monthly_contribution)}</span>
+                              <span className="text-slate-400 text-[10px] block font-medium">Monthly Base</span>
+                              <span className="font-bold text-blue-700">{formatCurrency(sch.monthly_contribution || (sch.total_chit_value / duration))}</span>
                             </div>
                             <div>
                               <span className="text-slate-400 text-[10px] block font-medium">Duration</span>
-                              <span className="font-bold text-slate-900">{sch.duration_months} Months</span>
+                              <span className="font-bold text-slate-900">{duration} Months</span>
                             </div>
                             <div>
                               <span className="text-slate-400 text-[10px] block font-medium">Auction Status</span>
@@ -511,12 +520,82 @@ export default function MembersPage() {
                             </div>
                           </div>
 
-                          {auctionWin && (
-                            <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex justify-between items-center font-medium">
-                              <span>Winner Payout Received in Month {auctionWin.month_number}:</span>
-                              <strong className="font-extrabold text-amber-950 text-sm">{formatCurrency(auctionWin.winner_payout)}</strong>
+                          {/* Payment Progress & Remaining Months Summary */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-blue-50/60 border border-blue-100 rounded-xl text-xs">
+                            <div>
+                              <span className="text-[10px] text-slate-500 font-medium block uppercase">Months Paid</span>
+                              <span className="font-extrabold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded text-[11px] inline-block mt-0.5 border border-emerald-200">
+                                {paidMonthsCount} of {duration} Months Paid
+                              </span>
+                              <span className="text-[10px] text-slate-500 block mt-0.5">
+                                Total Paid: <strong>{formatCurrency(totalAmountPaid)}</strong>
+                              </span>
                             </div>
-                          )}
+
+                            <div>
+                              <span className="text-[10px] text-slate-500 font-medium block uppercase">Remaining to Pay</span>
+                              <span className="font-extrabold text-blue-900 bg-blue-100 px-2 py-0.5 rounded text-[11px] inline-block mt-0.5 border border-blue-200">
+                                {remainingMonthsCount} Months Left to Pay
+                              </span>
+                              <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
+                                ({((paidMonthsCount / duration) * 100).toFixed(0)}% Completed)
+                              </span>
+                            </div>
+
+                            <div className="col-span-2 sm:col-span-1">
+                              <span className="text-[10px] text-slate-500 font-medium block uppercase">Bidding Status</span>
+                              <span className="font-bold text-slate-700 block text-[11px] mt-0.5">
+                                {auctionWin ? `🏆 Won Payout: ${formatCurrency(auctionWin.winner_payout)}` : '⏳ Eligible to Bid'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Month-by-Month Payment History Table */}
+                          <div className="space-y-1.5 pt-1">
+                            <h5 className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+                              Month-by-Month Transaction History ({schPayments.length} Payments)
+                            </h5>
+
+                            {schPayments.length === 0 ? (
+                              <div className="p-3 bg-slate-50 border rounded-xl text-slate-500 text-[11px] italic">
+                                No monthly payment transactions recorded for this scheme yet.
+                              </div>
+                            ) : (
+                              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                                <table className="w-full text-left border-collapse text-[11px]">
+                                  <thead>
+                                    <tr className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px]">
+                                      <th className="p-2">Month</th>
+                                      <th className="p-2">Base Contribution</th>
+                                      <th className="p-2">Dividend Applied</th>
+                                      <th className="p-2">Net Due</th>
+                                      <th className="p-2">Amount Paid</th>
+                                      <th className="p-2 text-center">Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 bg-white">
+                                    {schPayments.map((p) => (
+                                      <tr key={`pmt-rec-${p.id}`} className="hover:bg-slate-50">
+                                        <td className="p-2 font-bold text-blue-600">Month {p.month_number}</td>
+                                        <td className="p-2 font-medium">{formatCurrency(p.base_contribution || sch.monthly_contribution)}</td>
+                                        <td className="p-2 font-semibold text-emerald-600">-{formatCurrency(p.dividend_applied || 0)}</td>
+                                        <td className="p-2 font-bold text-slate-900">{formatCurrency(p.net_amount_due)}</td>
+                                        <td className="p-2 font-extrabold text-blue-700">{formatCurrency(p.amount_paid)}</td>
+                                        <td className="p-2 text-center">
+                                          <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                                            p.status === 'Paid' ? 'bg-emerald-100 text-emerald-800' :
+                                            p.status === 'Partially Paid' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                                          }`}>
+                                            {p.status}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
 
                         </div>
                       );
