@@ -97,15 +97,41 @@ export default function ChitSchemesPage() {
     }
   };
 
-  const openEnrollModal = async (sch) => {
+  // Multi-Ticket Enrollment state
+  const [schemeEnrolledMembers, setSchemeEnrolledMembers] = useState([]);
+  const [suggestedTicketNumber, setSuggestedTicketNumber] = useState(1);
+
+  const openEnrollModal = async (sch, targetMemberId = null) => {
     setEnrollModalScheme(sch);
+    setSelectedMemberId(targetMemberId ? String(targetMemberId) : '');
+    setTicketNumber('');
+
     try {
-      const res = await API.get('/members?limit=100');
-      if (res.data.success) {
-        setAvailableMembers(res.data.members);
+      const [detailsRes, membersRes] = await Promise.all([
+        API.get(`/chits/${sch.id}`),
+        API.get('/members?limit=100')
+      ]);
+
+      let enrolledList = [];
+      if (detailsRes.data.success) {
+        enrolledList = detailsRes.data.enrolledMembers || [];
+        setSchemeEnrolledMembers(enrolledList);
+
+        const occupiedTickets = enrolledList.map(m => Number(m.ticket_number));
+        let nextAvail = 1;
+        while (occupiedTickets.includes(nextAvail) && nextAvail <= sch.number_of_members) {
+          nextAvail++;
+        }
+        setSuggestedTicketNumber(nextAvail);
+        setTicketNumber(String(nextAvail));
+      }
+
+      if (membersRes.data.success) {
+        setAvailableMembers(membersRes.data.members);
       }
     } catch (err) {
-      setToast({ type: 'error', message: 'Failed to load member roster.' });
+      console.error('Enroll modal init error:', err);
+      setToast({ type: 'error', message: 'Failed to load enrollment roster.' });
     }
   };
 
@@ -116,7 +142,7 @@ export default function ChitSchemesPage() {
     try {
       const res = await API.post(`/chits/${enrollModalScheme.id}/enroll`, {
         member_id: selectedMemberId,
-        ticket_number: ticketNumber
+        ticket_number: ticketNumber || suggestedTicketNumber
       });
       if (res.data.success) {
         setToast({ type: 'success', message: res.data.message });
@@ -124,6 +150,9 @@ export default function ChitSchemesPage() {
         setSelectedMemberId('');
         setTicketNumber('');
         fetchSchemes();
+        if (viewSchemeModal) {
+          openSchemeDetailsModal(viewSchemeModal);
+        }
       }
     } catch (err) {
       setToast({ type: 'error', message: err.response?.data?.message || 'Failed to enroll member.' });
@@ -333,59 +362,108 @@ export default function ChitSchemesPage() {
       )}
 
       {/* Enroll Member Modal */}
-      {enrollModalScheme && (
-        <Modal
-          isOpen={!!enrollModalScheme}
-          onClose={() => setEnrollModalScheme(null)}
-          title={`Enroll Member in ${enrollModalScheme.scheme_name}`}
-        >
-          <form onSubmit={handleEnrollMember} className="space-y-4 text-xs">
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Select Member *</label>
-              <select
-                required
-                value={selectedMemberId}
-                onChange={(e) => setSelectedMemberId(e.target.value)}
-                className="w-full px-3 py-2 border rounded-xl"
-              >
-                <option value="">-- Choose Member from Directory --</option>
-                {availableMembers.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name} ({m.member_code}) - {m.contact_no_1}
-                  </option>
-                ))}
-              </select>
-            </div>
+      {enrollModalScheme && (() => {
+        const occupiedTickets = schemeEnrolledMembers.map(m => Number(m.ticket_number));
+        const totalMembersCap = enrollModalScheme.number_of_members || 20;
+        const freeTicketsList = Array.from({ length: totalMembersCap }, (_, i) => i + 1).filter(t => !occupiedTickets.includes(t));
+        const selectedMemberExisting = schemeEnrolledMembers.filter(m => Number(m.member_id) === Number(selectedMemberId));
 
-            <div>
-              <label className="block font-semibold text-slate-700 mb-1">Ticket Number (Optional)</label>
-              <input
-                type="number"
-                value={ticketNumber}
-                onChange={(e) => setTicketNumber(e.target.value)}
-                placeholder="Auto-assigned if left blank"
-                className="w-full px-3 py-2 border rounded-xl"
-              />
-            </div>
+        return (
+          <Modal
+            isOpen={!!enrollModalScheme}
+            onClose={() => setEnrollModalScheme(null)}
+            title={`Enroll Member in ${enrollModalScheme.scheme_name}`}
+          >
+            <form onSubmit={handleEnrollMember} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Select Member *</label>
+                <select
+                  required
+                  value={selectedMemberId}
+                  onChange={(e) => setSelectedMemberId(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl text-xs"
+                >
+                  <option value="">-- Choose Member from Directory --</option>
+                  {availableMembers.map((m) => {
+                    const heldCount = schemeEnrolledMembers.filter(e => Number(e.member_id) === Number(m.id)).length;
+                    return (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.member_code}) - {m.contact_no_1} {heldCount > 0 ? `[Holds ${heldCount} ticket(s)]` : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
 
-            <div className="pt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setEnrollModalScheme(null)}
-                className="px-4 py-2 border rounded-xl"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl"
-              >
-                Enroll Member
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
+              {/* Multi-ticket Notice */}
+              {selectedMemberExisting.length > 0 && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs flex items-start gap-2">
+                  <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Multi-Ticket Enrollment Mode</p>
+                    <p className="text-[11px] text-blue-700 mt-0.5">
+                      Member <strong>{selectedMemberExisting[0].name}</strong> already holds <strong>Ticket #{selectedMemberExisting.map(t => t.ticket_number).join(', #')}</strong> in this scheme. Enrolling again will assign them <strong>Ticket #{ticketNumber || suggestedTicketNumber}</strong> as their additional ticket (Total: {selectedMemberExisting.length + 1} Tickets).
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Ticket Number Selector */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="font-semibold text-slate-700">Ticket / Token Number *</label>
+                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                    ⚡ Auto Next: #{suggestedTicketNumber}
+                  </span>
+                </div>
+                <input
+                  type="number"
+                  required
+                  value={ticketNumber}
+                  onChange={(e) => setTicketNumber(e.target.value)}
+                  placeholder={`Auto-assigned (e.g. #${suggestedTicketNumber})`}
+                  className="w-full px-3 py-2 border rounded-xl font-mono text-xs font-bold"
+                />
+
+                {/* Quick Free Ticket Badges */}
+                <div className="flex flex-wrap gap-1 mt-2">
+                  <span className="text-[10px] text-slate-400 font-semibold self-center mr-1">Available Tokens:</span>
+                  {freeTicketsList.slice(0, 10).map(tNum => (
+                    <button
+                      key={`free-t-${tNum}`}
+                      type="button"
+                      onClick={() => setTicketNumber(String(tNum))}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold transition ${
+                        Number(ticketNumber) === tNum
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-blue-100 hover:text-blue-800'
+                      }`}
+                    >
+                      #{tNum}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEnrollModalScheme(null)}
+                  className="px-4 py-2 border rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-xs"
+                >
+                  Confirm & Enroll Member
+                </button>
+              </div>
+            </form>
+          </Modal>
+        );
+      })()}
 
       {/* Scheme Members & Payment Breakdown Modal */}
       {viewSchemeModal && (
@@ -461,6 +539,7 @@ export default function ChitSchemesPage() {
                         <th className="p-3">Current Dues</th>
                         <th className="p-3">Auction Status</th>
                         <th className="p-3 text-center">Payment Status</th>
+                        <th className="p-3 text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
@@ -564,6 +643,18 @@ export default function ChitSchemesPage() {
                                     <AlertTriangle className="w-3 h-3 text-amber-600" /> {m.due_months_count} Due
                                   </span>
                                 )}
+                              </td>
+
+                              <td className="p-3 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => openEnrollModal(schemeDetails.scheme, m.member_id)}
+                                  title={`Enroll ${m.name} for an additional ticket in this scheme`}
+                                  className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-[10px] font-bold inline-flex items-center gap-1 transition"
+                                >
+                                  <UserPlus className="w-3 h-3 text-blue-600" />
+                                  <span>+ 2nd Ticket</span>
+                                </button>
                               </td>
                             </tr>
                           );
