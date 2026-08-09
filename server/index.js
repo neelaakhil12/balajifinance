@@ -15,10 +15,29 @@ const auditRoutes = require('./routes/audit');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS & JSON parsing
+// Enable CORS & Body Parsing (Safe for both Standalone Node & Vercel Serverless Functions)
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Vercel Serverless Body Parser Guard (prevents 500 error when stream is already consumed by Vercel)
+app.use((req, res, next) => {
+  if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+    return next();
+  }
+  express.json({ limit: '10mb' })(req, res, (err) => {
+    if (err) return next();
+    next();
+  });
+});
+
+app.use((req, res, next) => {
+  if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+    return next();
+  }
+  express.urlencoded({ extended: true })(req, res, (err) => {
+    if (err) return next();
+    next();
+  });
+});
 
 // Register API Endpoints (Supports both /api/* and /* paths on Vercel)
 app.use(['/api/auth', '/auth'], authRoutes);
