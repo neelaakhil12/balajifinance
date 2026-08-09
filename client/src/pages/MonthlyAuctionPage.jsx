@@ -100,7 +100,8 @@ export default function MonthlyAuctionPage() {
     }
   };
 
-  // Map of ticket_key -> month_number won in this scheme (for display)
+  // Map of ticket_key (memberId_ticketNo) -> month_number won in this scheme
+  // Rule: Only the SPECIFIC TICKET that won is ineligible. Other tickets of the same member remain ELIGIBLE.
   const previousWinnersMap = React.useMemo(() => {
     const map = {};
     if (schemeDetails?.auctions) {
@@ -111,25 +112,6 @@ export default function MonthlyAuctionPage() {
     }
     return map;
   }, [schemeDetails]);
-
-  // Set of member_ids who have already won any auction in this scheme
-  // (Each PERSON can only win ONCE per scheme, regardless of how many tickets they hold)
-  const previousWinnerMemberIds = React.useMemo(() => {
-    const set = new Set();
-    if (schemeDetails?.auctions) {
-      schemeDetails.auctions.forEach((auc) => {
-        set.add(Number(auc.winning_member_id));
-      });
-    }
-    return set;
-  }, [schemeDetails]);
-
-  // Helper: get which month a member won (if any)
-  const getMemberWonMonth = (memberId) => {
-    if (!schemeDetails?.auctions) return null;
-    const win = schemeDetails.auctions.find((auc) => Number(auc.winning_member_id) === Number(memberId));
-    return win ? win.month_number : null;
-  };
 
   // Live Server Financial Calculation Preview Trigger
   useEffect(() => {
@@ -379,17 +361,17 @@ export default function MonthlyAuctionPage() {
                       <optgroup label="Enrolled Scheme Roster & Ticket Numbers">
                         {schemeDetails.enrolledMembers.map((m) => {
                           const ticketKey = `${m.member_id}_${m.ticket_number || 1}`;
-                          // Block by MEMBER_ID — one person can only win ONCE per scheme
-                          const isIneligible = previousWinnerMemberIds.has(Number(m.member_id));
-                          const wonMonth = getMemberWonMonth(m.member_id);
+                          // Only THIS SPECIFIC TICKET is ineligible if it has already won
+                          // The same person's OTHER tickets remain fully ELIGIBLE
+                          const wonMonth = previousWinnersMap[ticketKey];
                           return (
                             <option
                               key={`enrolled-${m.member_id}-${m.ticket_number}`}
                               value={ticketKey}
-                              disabled={isIneligible}
-                              style={isIneligible ? { color: '#dc2626', backgroundColor: '#fef2f2', fontWeight: 'bold' } : {}}
+                              disabled={!!wonMonth}
+                              style={wonMonth ? { color: '#dc2626', backgroundColor: '#fef2f2', fontWeight: 'bold' } : {}}
                             >
-                              Ticket #{m.ticket_number}: {m.name} ({m.member_code}) {isIneligible ? `— 🚫 ALREADY WON MONTH ${wonMonth} (INELIGIBLE)` : '— ✅ Eligible to Bid'}
+                              Ticket #{m.ticket_number}: {m.name} ({m.member_code}) {wonMonth ? `— 🚫 THIS TICKET WON MONTH ${wonMonth} (INELIGIBLE)` : '— ✅ Eligible to Bid'}
                             </option>
                           );
                         })}
@@ -405,21 +387,14 @@ export default function MonthlyAuctionPage() {
                       
                       return (
                         <optgroup label="Other Registered Members (Auto-Enroll on Selection)">
-                          {unenrolledMembers.map((m) => {
-                            // Also check if this unenrolled member has previously won via another ticket
-                            const isIneligible = previousWinnerMemberIds.has(Number(m.id));
-                            const wonMonth = getMemberWonMonth(m.id);
-                            return (
-                              <option
-                                key={`system-${m.id}`}
-                                value={m.id}
-                                disabled={isIneligible}
-                                style={isIneligible ? { color: '#dc2626', backgroundColor: '#fef2f2', fontWeight: 'bold' } : {}}
-                              >
-                                {m.name} ({m.member_code}) - Phone: {m.contact_no_1} {isIneligible ? `— 🚫 ALREADY WON MONTH ${wonMonth} (INELIGIBLE)` : '— ⚡ Auto-Enroll on Selection'}
-                              </option>
-                            );
-                          })}
+                          {unenrolledMembers.map((m) => (
+                            <option
+                              key={`system-${m.id}`}
+                              value={m.id}
+                            >
+                              {m.name} ({m.member_code}) - Phone: {m.contact_no_1} — ⚡ Auto-Enroll on Selection
+                            </option>
+                          ))}
                         </optgroup>
                       );
                     })()}
@@ -435,28 +410,28 @@ export default function MonthlyAuctionPage() {
                       Scheme Roster Bidding Status ({schemeDetails.enrolledMembers.length} Tickets Enrolled)
                     </span>
                     <span className="text-slate-500 font-medium">
-                      <span className="text-emerald-700 font-bold">✓ Green = Eligible</span> | <span className="text-rose-600 font-bold">🚫 Red = Previous Winner (Ineligible)</span>
+                      <span className="text-emerald-700 font-bold">✓ Green = Eligible</span> | <span className="text-rose-600 font-bold">🚫 Red = This Ticket Already Won</span>
                     </span>
                   </div>
 
                   <div className="flex flex-wrap gap-2 text-xs pt-1">
                     {schemeDetails.enrolledMembers.map((m) => {
                       const ticketKey = `${m.member_id}_${m.ticket_number || 1}`;
-                      // Block by MEMBER_ID — mark ALL tickets of a previous winner red
-                      const isIneligible = previousWinnerMemberIds.has(Number(m.member_id));
-                      const wonMonth = getMemberWonMonth(m.member_id);
+                      // Only THIS specific ticket is ineligible if it has previously won
+                      // Other tickets of the same member stay GREEN (eligible)
+                      const wonMonth = previousWinnersMap[ticketKey];
                       return (
                         <div
                           key={`badge-${ticketKey}`}
                           className={`px-2.5 py-1.5 rounded-lg border font-bold text-[11px] flex items-center gap-1.5 shadow-2xs ${
-                            isIneligible
+                            wonMonth
                               ? 'bg-rose-100 text-rose-900 border-rose-300 ring-1 ring-rose-400/50'
                               : 'bg-emerald-50 text-emerald-900 border-emerald-300'
                           }`}
                         >
                           <span className="font-mono text-[10px] bg-white/70 px-1 py-0.5 rounded border border-slate-200">T#{m.ticket_number}</span>
                           <span>{m.name}</span>
-                          {isIneligible ? (
+                          {wonMonth ? (
                             <span className="bg-rose-600 text-white text-[9px] px-1.5 py-0.5 rounded font-extrabold ml-1 uppercase shadow-xs">
                               🚫 WON MONTH {wonMonth} (INELIGIBLE)
                             </span>
@@ -481,6 +456,7 @@ export default function MonthlyAuctionPage() {
                 </p>
               )}
             </div>
+
 
             {/* Notes */}
             <div className="sm:col-span-2">
