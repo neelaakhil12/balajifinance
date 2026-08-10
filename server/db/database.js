@@ -26,8 +26,10 @@ if (!isServerless) {
   }
 }
 
+const supabase = require('./supabase');
+
 if (!isNative) {
-  console.log('Running JS Relational Engine for Vercel/Serverless deployment.');
+  console.log('Running JS Relational Engine with Supabase Cloud DB Persistence for Vercel deployment.');
 
   const memoryStore = {
     users: [],
@@ -45,6 +47,57 @@ if (!isNative) {
     users: 1, members: 1, kyc_documents: 1, chit_schemes: 1,
     chit_enrollments: 1, auctions: 1, monthly_payments: 1, dividends: 1, audit_logs: 1
   };
+
+  async function syncFromSupabase() {
+    try {
+      const [
+        { data: users },
+        { data: members },
+        { data: kycDocs },
+        { data: schemes },
+        { data: enrollments },
+        { data: auctions },
+        { data: payments },
+        { data: dividends },
+        { data: auditLogs }
+      ] = await Promise.all([
+        supabase.from('users').select('*'),
+        supabase.from('members').select('*').order('id', { ascending: false }),
+        supabase.from('kyc_documents').select('*'),
+        supabase.from('chit_schemes').select('*').order('id', { ascending: false }),
+        supabase.from('chit_enrollments').select('*'),
+        supabase.from('auctions').select('*').order('id', { ascending: false }),
+        supabase.from('monthly_payments').select('*').order('id', { ascending: false }),
+        supabase.from('dividends').select('*').order('id', { ascending: false }),
+        supabase.from('audit_logs').select('*').order('id', { ascending: false })
+      ]);
+
+      if (users && users.length > 0) memoryStore.users = users;
+      if (members && members.length > 0) memoryStore.members = members;
+      if (kycDocs && kycDocs.length > 0) memoryStore.kyc_documents = kycDocs;
+      if (schemes && schemes.length > 0) memoryStore.chit_schemes = schemes;
+      if (enrollments && enrollments.length > 0) memoryStore.chit_enrollments = enrollments;
+      if (auctions && auctions.length > 0) memoryStore.auctions = auctions;
+      if (payments && payments.length > 0) memoryStore.monthly_payments = payments;
+      if (dividends && dividends.length > 0) memoryStore.dividends = dividends;
+      if (auditLogs && auditLogs.length > 0) memoryStore.audit_logs = auditLogs;
+
+      // Update max autoId counters
+      const tables = ['users', 'members', 'kyc_documents', 'chit_schemes', 'chit_enrollments', 'auctions', 'monthly_payments', 'dividends', 'audit_logs'];
+      tables.forEach(tbl => {
+        if (memoryStore[tbl] && memoryStore[tbl].length > 0) {
+          const max = memoryStore[tbl].reduce((m, item) => (item && item.id > m ? item.id : m), 0);
+          autoId[tbl] = max + 1;
+        }
+      });
+      console.log('Successfully synced data from Supabase Cloud DB!');
+    } catch (e) {
+      console.warn('Supabase initial sync warning:', e.message);
+    }
+  }
+
+  // Trigger sync on serverless cold start
+  syncFromSupabase();
 
   db = {
     exec: () => {},
@@ -248,13 +301,13 @@ if (!isNative) {
               return [...memoryStore.audit_logs];
             }
             if (cleanSql.includes('FROM kyc_documents')) {
-              return memoryStore.kyc_documents.filter(doc => doc.member_id === Number(params[0]));
+              return memoryStore.kyc_documents.filter(doc => doc && doc.member_id === Number(params[0]));
             }
             if (cleanSql.includes('FROM chit_enrollments')) {
               return memoryStore.chit_enrollments
-                .filter(ce => ce.scheme_id === Number(params[0]))
+                .filter(ce => ce && ce.scheme_id === Number(params[0]))
                 .map(ce => {
-                  const m = memoryStore.members.find(mbr => mbr.id === ce.member_id) || {};
+                  const m = memoryStore.members.find(mbr => mbr && mbr.id === ce.member_id) || {};
                   return {
                     enrollment_id: ce.id,
                     ticket_number: ce.ticket_number,
@@ -278,79 +331,124 @@ if (!isNative) {
           try {
             if (cleanSql.includes('INSERT INTO users')) {
               const id = autoId.users++;
-              memoryStore.users.push({ id, name: params[0], email: params[1], password_hash: params[2], role: params[3], created_at: params[4] });
+              const uObj = { id, name: params[0], email: params[1], password_hash: params[2], role: params[3], created_at: params[4] };
+              memoryStore.users.push(uObj);
+              supabase.from('users').insert([{ name: params[0], email: params[1], password_hash: params[2], role: params[3] }]).then(r => { if(r.error) console.error('Supabase user insert:', r.error); });
               return { lastInsertRowid: id };
             }
             if (cleanSql.includes('INSERT INTO members')) {
               const id = autoId.members++;
-              memoryStore.members.unshift({
+              const mObj = {
                 id, member_code: params[0], name: params[1], email: params[2],
                 contact_no_1: params[3], contact_no_2: params[4], aadhaar_no: params[5],
                 kyc_status: params[6] || 'Verified', chit_status: params[7] || 'Active',
                 created_at: params[8] || new Date().toISOString(), updated_at: params[9] || new Date().toISOString()
-              });
+              };
+              memoryStore.members.unshift(mObj);
+              supabase.from('members').insert([{
+                member_code: params[0], name: params[1], email: params[2],
+                contact_no_1: params[3], contact_no_2: params[4], aadhaar_no: params[5],
+                kyc_status: params[6] || 'Verified', chit_status: params[7] || 'Active'
+              }]).then(r => { if(r.error) console.error('Supabase member insert:', r.error); });
               return { lastInsertRowid: id };
             }
             if (cleanSql.includes('INSERT INTO kyc_documents')) {
               const id = autoId.kyc_documents++;
-              memoryStore.kyc_documents.push({
+              const docObj = {
                 id, member_id: params[0], document_type: params[1], file_name: params[2],
                 original_name: params[3], file_path: params[4], mime_type: params[5],
                 file_size: params[6], uploaded_at: params[7]
-              });
+              };
+              memoryStore.kyc_documents.push(docObj);
+              supabase.from('kyc_documents').insert([{
+                member_id: params[0], document_type: params[1], file_name: params[2],
+                original_name: params[3], file_path: params[4], mime_type: params[5],
+                file_size: params[6]
+              }]).then(r => { if(r.error) console.error('Supabase kyc insert:', r.error); });
               return { lastInsertRowid: id };
             }
             if (cleanSql.includes('INSERT INTO chit_schemes')) {
               const id = autoId.chit_schemes++;
-              memoryStore.chit_schemes.unshift({
+              const schObj = {
                 id, scheme_code: params[0], scheme_name: params[1], total_chit_value: params[2],
                 duration_months: params[3], number_of_members: params[4], monthly_contribution: params[5],
                 foreman_commission_percent: params[6], foreman_commission_amount: params[7],
                 start_date: params[8], end_date: params[9], status: 'Active', created_at: params[10]
-              });
+              };
+              memoryStore.chit_schemes.unshift(schObj);
+              supabase.from('chit_schemes').insert([{
+                scheme_code: params[0], scheme_name: params[1], total_chit_value: params[2],
+                duration_months: params[3], number_of_members: params[4], monthly_contribution: params[5],
+                foreman_commission_percent: params[6], foreman_commission_amount: params[7],
+                start_date: params[8], end_date: params[9], status: 'Active'
+              }]).then(r => { if(r.error) console.error('Supabase scheme insert:', r.error); });
               return { lastInsertRowid: id };
             }
             if (cleanSql.includes('INSERT INTO chit_enrollments')) {
               const id = autoId.chit_enrollments++;
-              memoryStore.chit_enrollments.push({ id, scheme_id: params[0], member_id: params[1], ticket_number: params[2], enrolled_at: params[3], status: 'Active' });
+              const enrObj = { id, scheme_id: params[0], member_id: params[1], ticket_number: params[2], enrolled_at: params[3], status: 'Active' };
+              memoryStore.chit_enrollments.push(enrObj);
+              supabase.from('chit_enrollments').insert([{
+                scheme_id: params[0], member_id: params[1], ticket_number: params[2], status: 'Active'
+              }]).then(r => { if(r.error) console.error('Supabase enrollment insert:', r.error); });
               return { lastInsertRowid: id };
             }
             if (cleanSql.includes('INSERT INTO auctions')) {
               const id = autoId.auctions++;
-              memoryStore.auctions.unshift({
+              const aucObj = {
                 id, scheme_id: params[0], month_number: params[1], auction_date: params[2],
                 winning_member_id: params[3], winning_bid_discount: params[4], foreman_commission: params[5],
                 winner_payout: params[6], dividend_pool: params[7], dividend_per_member: params[8],
                 next_month_payable: params[9], notes: params[10], created_at: params[11]
-              });
+              };
+              memoryStore.auctions.unshift(aucObj);
+              supabase.from('auctions').insert([{
+                scheme_id: params[0], month_number: params[1], auction_date: params[2],
+                winning_member_id: params[3], winning_bid_discount: params[4], foreman_commission: params[5],
+                winner_payout: params[6], dividend_pool: params[7], dividend_per_member: params[8],
+                next_month_payable: params[9], notes: params[10]
+              }]).then(r => { if(r.error) console.error('Supabase auction insert:', r.error); });
               return { lastInsertRowid: id };
             }
             if (cleanSql.includes('INSERT INTO monthly_payments')) {
-              const existing = memoryStore.monthly_payments.find(p => p.scheme_id === Number(params[0]) && p.member_id === Number(params[1]) && p.month_number === Number(params[2]));
+              const existing = memoryStore.monthly_payments.find(p => p && p.scheme_id === Number(params[0]) && p.member_id === Number(params[1]) && p.month_number === Number(params[2]));
               if (existing) {
                 existing.dividend_applied = params[4];
                 existing.net_amount_due = params[5];
                 return { lastInsertRowid: existing.id };
               }
               const id = autoId.monthly_payments++;
-              memoryStore.monthly_payments.unshift({
+              const pmtObj = {
                 id, scheme_id: params[0], member_id: params[1], month_number: params[2],
                 base_contribution: params[3], dividend_applied: params[4], net_amount_due: params[5],
                 amount_paid: params[6] || 0, status: params[7] || 'Pending', notes: params[8] || '', created_at: params[9]
-              });
+              };
+              memoryStore.monthly_payments.unshift(pmtObj);
+              supabase.from('monthly_payments').insert([{
+                scheme_id: params[0], member_id: params[1], month_number: params[2],
+                base_contribution: params[3], dividend_applied: params[4], net_amount_due: params[5],
+                amount_paid: params[6] || 0, status: params[7] || 'Pending', notes: params[8] || ''
+              }]).then(r => { if(r.error) console.error('Supabase payment insert:', r.error); });
               return { lastInsertRowid: id };
             }
             if (cleanSql.includes('INSERT INTO dividends')) {
               const id = autoId.dividends++;
-              memoryStore.dividends.unshift({
+              const divObj = {
                 id, auction_id: params[0], scheme_id: params[1], member_id: params[2],
                 month_number: params[3], dividend_amount: params[4], created_at: params[5]
-              });
+              };
+              memoryStore.dividends.unshift(divObj);
+              supabase.from('dividends').insert([{
+                auction_id: params[0], scheme_id: params[1], member_id: params[2],
+                month_number: params[3], dividend_amount: params[4]
+              }]).then(r => { if(r.error) console.error('Supabase dividend insert:', r.error); });
               return { lastInsertRowid: id };
             }
             if (cleanSql.includes('INSERT INTO audit_logs')) {
               const id = autoId.audit_logs++;
-              memoryStore.audit_logs.unshift({ id, user_id: params[0], user_name: params[1], action: params[2], target: params[3], details: params[4], timestamp: params[5] });
+              const audObj = { id, user_id: params[0], user_name: params[1], action: params[2], target: params[3], details: params[4], timestamp: params[5] };
+              memoryStore.audit_logs.unshift(audObj);
+              supabase.from('audit_logs').insert([{ user_id: params[0], user_name: params[1], action: params[2], target: params[3], details: params[4] }]).then(r => { if(r.error) console.error('Supabase audit insert:', r.error); });
               return { lastInsertRowid: id };
             }
             if (cleanSql.includes('UPDATE monthly_payments')) {
