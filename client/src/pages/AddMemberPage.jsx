@@ -217,15 +217,15 @@ export default function AddMemberPage() {
             {/* Custom Member ID / Code */}
             <div className="sm:col-span-2 bg-blue-50/60 p-3.5 border border-blue-200 rounded-xl">
               <label className="block text-xs font-bold text-blue-950 mb-1 flex items-center justify-between">
-                <span>Member ID / Code (Custom or Auto-generated)</span>
-                <span className="text-[10px] text-blue-700 font-normal">Leave blank for auto-generated (e.g. BSF-MBR-1001)</span>
+                <span>Member ID / Code (ANY format allowed)</span>
+                <span className="text-[10px] text-blue-700 font-normal">Type any ID (e.g. 1, M-101, HARISH, BSF-01) or leave blank</span>
               </label>
               <input
                 type="text"
                 name="member_code"
                 value={formData.member_code}
                 onChange={handleInputChange}
-                placeholder="e.g. BSF-MBR-001 or 101"
+                placeholder="Type ANY custom Member ID format you want..."
                 className="w-full px-3.5 py-2.5 bg-white border border-blue-300 rounded-xl text-sm font-mono font-bold text-blue-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               {errors.member_code && <p className="text-xs text-rose-500 mt-1">{errors.member_code}</p>}

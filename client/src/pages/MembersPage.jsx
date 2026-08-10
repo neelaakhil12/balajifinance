@@ -324,12 +324,12 @@ export default function MembersPage() {
         >
           <form onSubmit={handleUpdateMember} className="space-y-4 text-xs">
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Member ID / Code</label>
+              <label className="block font-semibold text-slate-700 mb-1">Member ID / Code (ANY format)</label>
               <input
                 type="text"
                 value={editModalMember.member_code || ''}
                 onChange={(e) => setEditModalMember({ ...editModalMember, member_code: e.target.value })}
-                placeholder="e.g. BSF-MBR-1001"
+                placeholder="Type ANY custom Member ID format..."
                 className="w-full px-3 py-2 border rounded-lg font-mono font-bold text-blue-900 bg-blue-50/50"
               />
             </div>
