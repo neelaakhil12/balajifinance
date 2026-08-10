@@ -134,7 +134,7 @@ router.post(
   ]),
   (req, res) => {
     try {
-      const { name, email, contact_no_1, contact_no_2, aadhaar_id_no } = req.body;
+      const { name, email, contact_no_1, contact_no_2, aadhaar_id_no, member_code } = req.body;
 
       // Validation
       if (!name || !name.trim()) {
@@ -161,6 +161,18 @@ router.post(
         return res.status(400).json({ success: false, message: 'A member with this Aadhaar number already exists.' });
       }
 
+      // Member Code generation or manual input
+      let finalMemberCode = member_code ? member_code.trim() : '';
+      if (!finalMemberCode) {
+        const maxId = (db.prepare('SELECT MAX(id) as max_id FROM members').get() || {}).max_id || 0;
+        finalMemberCode = `BSF-MBR-${1001 + maxId}`;
+      } else {
+        const existingCode = db.prepare('SELECT id FROM members WHERE member_code = ?').get(finalMemberCode);
+        if (existingCode) {
+          return res.status(400).json({ success: false, message: `Member ID / Code "${finalMemberCode}" is already in use by another member.` });
+        }
+      }
+
       // Verify files uploaded
       if (!req.files || !req.files.aadhaar_document || !req.files.pan_document) {
         return res.status(400).json({
@@ -171,16 +183,12 @@ router.post(
 
       const now = new Date().toISOString();
 
-      // Generate Member Code: BSF-MBR-100X
-      const maxId = (db.prepare('SELECT MAX(id) as max_id FROM members').get() || {}).max_id || 0;
-      const memberCode = `BSF-MBR-${1001 + maxId}`;
-
       // Insert Member
       const result = db.prepare(`
         INSERT INTO members (member_code, name, email, contact_no_1, contact_no_2, aadhaar_no, kyc_status, chit_status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, 'Verified', 'Active', ?, ?)
       `).run(
-        memberCode,
+        finalMemberCode,
         name.trim(),
         email.trim().toLowerCase(),
         contact_no_1.trim(),
@@ -350,20 +358,30 @@ router.get('/:id/documents/:docId', authenticateToken, (req, res) => {
 router.put('/:id', authenticateToken, (req, res) => {
   try {
     const memberId = req.params.id;
-    const { name, email, contact_no_1, contact_no_2, aadhaar_no, kyc_status, chit_status } = req.body;
+    const { member_code, name, email, contact_no_1, contact_no_2, aadhaar_no, kyc_status, chit_status } = req.body;
 
     const existing = db.prepare('SELECT * FROM members WHERE id = ?').get(memberId);
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Member not found.' });
     }
 
+    let updatedMemberCode = existing.member_code;
+    if (member_code && member_code.trim() && member_code.trim() !== existing.member_code) {
+      const codeCheck = db.prepare('SELECT id FROM members WHERE member_code = ?').get(member_code.trim());
+      if (codeCheck && String(codeCheck.id) !== String(memberId)) {
+        return res.status(400).json({ success: false, message: `Member ID / Code "${member_code.trim()}" is already assigned to another member.` });
+      }
+      updatedMemberCode = member_code.trim();
+    }
+
     const now = new Date().toISOString();
 
     db.prepare(`
       UPDATE members
-      SET name = ?, email = ?, contact_no_1 = ?, contact_no_2 = ?, aadhaar_no = ?, kyc_status = ?, chit_status = ?, updated_at = ?
+      SET member_code = ?, name = ?, email = ?, contact_no_1 = ?, contact_no_2 = ?, aadhaar_no = ?, kyc_status = ?, chit_status = ?, updated_at = ?
       WHERE id = ?
     `).run(
+      updatedMemberCode,
       name || existing.name,
       email || existing.email,
       contact_no_1 || existing.contact_no_1,
@@ -375,7 +393,7 @@ router.put('/:id', authenticateToken, (req, res) => {
       memberId
     );
 
-    logAuditAction(req.user.id, req.user.name, 'UPDATE_MEMBER', 'Members', `Updated details for member ID ${memberId}.`);
+    logAuditAction(req.user.id, req.user.name, 'UPDATE_MEMBER', 'Members', `Updated details for member Code ${updatedMemberCode} (ID ${memberId}).`);
 
     return res.json({ success: true, message: 'Member details updated successfully.' });
   } catch (error) {
