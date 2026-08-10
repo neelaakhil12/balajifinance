@@ -112,6 +112,7 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
   syncFromSupabase();
 
   db = {
+    syncFromSupabase,
     exec: () => {},
     pragma: () => {},
     prepare: (sql) => {

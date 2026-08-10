@@ -27,6 +27,18 @@ app.use((req, res, next) => {
     if (err) return next();
     next();
   });
+const db = require('./db/database');
+
+// Ensure database is 100% synchronized from Supabase Cloud DB on Vercel Serverless Functions
+app.use(async (req, res, next) => {
+  if (db && typeof db.syncFromSupabase === 'function') {
+    try {
+      await db.syncFromSupabase();
+    } catch (e) {
+      console.warn('Vercel DB sync warning:', e.message);
+    }
+  }
+  next();
 });
 
 function getRoute(routeName) {
