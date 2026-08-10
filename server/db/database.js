@@ -133,10 +133,10 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
               return { max_id: max };
             }
             if (cleanSql.includes('SELECT * FROM members WHERE id = ?')) {
-              return memoryStore.members.find(m => m && m.id === Number(params[0]));
+              return memoryStore.members.find(m => m && (m.id === Number(params[0]) || String(m.id) === String(params[0]) || m.member_code === String(params[0])));
             }
             if (cleanSql.includes('SELECT * FROM chit_schemes WHERE id = ?')) {
-              return memoryStore.chit_schemes.find(s => s && s.id === Number(params[0]));
+              return memoryStore.chit_schemes.find(s => s && (s.id === Number(params[0]) || String(s.id) === String(params[0]) || s.scheme_code === String(params[0])));
             }
             if (cleanSql.includes('FROM chit_enrollments')) {
               const schId = params[0] ? Number(params[0]) : null;
@@ -510,9 +510,9 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
               return { changes: 1 };
             }
             if (cleanSql.includes('DELETE FROM members WHERE id = ?')) {
-              const mId = Number(params[0]);
-              memoryStore.members = memoryStore.members.filter(m => m && m.id !== mId);
-              supabase.from('members').delete().eq('id', mId).then(r => { if(r.error) console.error('Supabase member delete:', r.error); });
+              const mId = params[0];
+              memoryStore.members = memoryStore.members.filter(m => m && m.id !== Number(mId) && String(m.id) !== String(mId) && m.member_code !== String(mId));
+              supabase.from('members').delete().eq('id', Number(mId) || mId).then(r => { if(r.error) console.error('Supabase member delete:', r.error); });
               return { changes: 1 };
             }
             if (cleanSql.includes('DELETE FROM chit_enrollments WHERE scheme_id = ?')) {
