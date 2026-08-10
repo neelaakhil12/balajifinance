@@ -44,17 +44,19 @@ export default function ReceiptModal({ isOpen, onClose, payment }) {
     formattedDate = `${day}/${month}/${year}`;
   }
 
-  const instalmentNo = payment.month_number || 10;
+  const instalmentNo = payment.month_number || 1;
   const savingAmount = Number(payment.base_contribution || 5000);
-  const lessInterest = Number(payment.dividend_applied || 1500);
+  const lessInterest = Number(payment.dividend_applied || 0);
 
-  const toBePaidVal = Number(payment.amount_paid > 0 ? payment.amount_paid : payment.net_amount_due || (savingAmount - lessInterest));
-  const alreadyPaidVal = Math.max(0, Number(payment.amount_paid > 0 ? payment.net_amount_due - payment.amount_paid : 0));
+  const netDueVal = Number(payment.net_amount_due || (savingAmount - lessInterest));
+  const amountPaidVal = Number(payment.amount_paid || 0);
+  const balanceDueVal = Math.max(0, netDueVal - amountPaidVal);
   
   // Total cumulative interest earned
   const totInterestVal = lessInterest * Math.max(1, instalmentNo);
 
-  const amountInWords = `Rs ${numberToWordsRupees(toBePaidVal)}`;
+  const displayVal = amountPaidVal > 0 ? amountPaidVal : netDueVal;
+  const amountInWords = `Rs ${numberToWordsRupees(displayVal)}`;
 
   const handlePrint = () => {
     if (!receiptRef.current) return;
@@ -154,32 +156,39 @@ export default function ReceiptModal({ isOpen, onClose, payment }) {
 
           <div style="font-size: 11px;">
             <div style="display: flex; justify-content: space-between;">
-              <span style="color: #334155; width: 35%;">Tot Interest</span>
-              <div style="display: flex; justify-content: space-between; width: 65%;">
-                <span>Saving Amount</span>
+              <span style="color: #334155; width: 38%;">Tot Interest</span>
+              <div style="display: flex; justify-content: space-between; width: 62%;">
+                <span>Monthly Due</span>
                 <span style="font-weight: bold;">${formatDecimal(savingAmount)}</span>
               </div>
             </div>
 
             <div style="display: flex; justify-content: space-between; margin-top: 3px;">
-              <span style="font-weight: bold; width: 35%;">Rs ${formatDecimal(totInterestVal)}</span>
-              <div style="display: flex; justify-content: space-between; width: 65%;">
-                <span>Less Interest</span>
-                <span style="font-weight: bold;">${formatDecimal(lessInterest)}</span>
+              <span style="font-weight: bold; width: 38%;">Rs ${formatDecimal(totInterestVal)}</span>
+              <div style="display: flex; justify-content: space-between; width: 62%;">
+                <span>Less Dividend</span>
+                <span style="font-weight: bold;">-${formatDecimal(lessInterest)}</span>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+              <div style="display: flex; justify-content: space-between; width: 62%; font-weight: bold; font-size: 11px; border-top: 1px solid #cbd5e1; padding-top: 2px;">
+                <span>Net Amount Due</span>
+                <span style="font-weight: 800; color: #1e3a8a;">${formatDecimal(netDueVal)}</span>
               </div>
             </div>
 
             <div style="display: flex; justify-content: flex-end; margin-top: 3px;">
-              <div style="display: flex; justify-content: space-between; width: 65%;">
-                <span>Already Paid</span>
-                <span style="font-weight: bold;">${formatDecimal(alreadyPaidVal)}</span>
+              <div style="display: flex; justify-content: space-between; width: 62%;">
+                <span>Amount Paid</span>
+                <span style="font-weight: bold; color: #047857;">${formatDecimal(amountPaidVal)}</span>
               </div>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
-              <div style="display: flex; justify-content: space-between; width: 65%; font-weight: bold; font-size: 11px; border-top: 1px solid #94a3b8; padding-top: 3px;">
-                <span>Net Amount Payable</span>
-                <span style="font-weight: 800; color: #064e3b;">${formatDecimal(toBePaidVal)}</span>
+            <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+              <div style="display: flex; justify-content: space-between; width: 62%; font-weight: bold; font-size: 11px; border-top: 1px solid #94a3b8; padding-top: 3px;">
+                <span>Balance Due</span>
+                <span style="font-weight: 800; color: #881337;">${formatDecimal(balanceDueVal)}</span>
               </div>
             </div>
           </div>
@@ -271,32 +280,39 @@ export default function ReceiptModal({ isOpen, onClose, payment }) {
             {/* Financial Grid Layout */}
             <div className="space-y-1 text-[10px]">
               <div className="flex justify-between items-start">
-                <span className="text-slate-700 w-[35%]">Tot Interest</span>
-                <div className="flex justify-between w-[65%] font-mono">
-                  <span>Saving Amount</span>
+                <span className="text-slate-700 w-[38%]">Tot Interest</span>
+                <div className="flex justify-between w-[62%] font-mono">
+                  <span>Monthly Due</span>
                   <span className="font-bold">{formatDecimal(savingAmount)}</span>
                 </div>
               </div>
 
               <div className="flex justify-between items-start">
-                <span className="font-bold w-[35%]">Rs {formatDecimal(totInterestVal)}</span>
-                <div className="flex justify-between w-[65%] font-mono">
-                  <span>Less Interest</span>
-                  <span className="font-bold">{formatDecimal(lessInterest)}</span>
+                <span className="font-bold w-[38%]">Rs {formatDecimal(totInterestVal)}</span>
+                <div className="flex justify-between w-[62%] font-mono">
+                  <span>Less Dividend</span>
+                  <span className="font-bold">-{formatDecimal(lessInterest)}</span>
+                </div>
+              </div>
+
+              <div className="pt-0.5 flex justify-end">
+                <div className="flex justify-between w-[62%] font-mono font-bold text-[11px] border-t border-slate-300 pt-0.5">
+                  <span>Net Amount Due</span>
+                  <span className="text-blue-900 font-extrabold">{formatDecimal(netDueVal)}</span>
                 </div>
               </div>
 
               <div className="flex justify-end">
-                <div className="flex justify-between w-[65%] font-mono">
-                  <span>Already Paid</span>
-                  <span className="font-bold">{formatDecimal(alreadyPaidVal)}</span>
+                <div className="flex justify-between w-[62%] font-mono">
+                  <span>Amount Paid</span>
+                  <span className="font-bold text-emerald-700">{formatDecimal(amountPaidVal)}</span>
                 </div>
               </div>
 
-              <div className="pt-1.5 flex justify-end">
-                <div className="flex justify-between w-[65%] font-mono font-bold text-[11px] border-t border-slate-400 pt-0.5">
-                  <span>Net Amount Payable</span>
-                  <span className="text-emerald-900 font-extrabold">{formatDecimal(toBePaidVal)}</span>
+              <div className="pt-0.5 flex justify-end">
+                <div className="flex justify-between w-[62%] font-mono font-bold text-[11px] border-t border-slate-400 pt-0.5">
+                  <span>Balance Due</span>
+                  <span className="text-rose-900 font-extrabold">{formatDecimal(balanceDueVal)}</span>
                 </div>
               </div>
             </div>
