@@ -97,6 +97,23 @@ export default function ChitSchemesPage() {
     }
   };
 
+  // Delete Scheme Modal state
+  const [deleteModalScheme, setDeleteModalScheme] = useState(null);
+
+  const handleDeleteScheme = async () => {
+    if (!deleteModalScheme) return;
+    try {
+      const res = await API.delete(`/chits/${deleteModalScheme.id}`);
+      if (res.data.success) {
+        setToast({ type: 'success', message: res.data.message || `Chit scheme ${deleteModalScheme.scheme_code} deleted successfully.` });
+        setDeleteModalScheme(null);
+        fetchSchemes();
+      }
+    } catch (err) {
+      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to delete chit scheme.' });
+    }
+  };
+
   // Multi-Ticket Enrollment state
   const [schemeEnrolledMembers, setSchemeEnrolledMembers] = useState([]);
   const [suggestedTicketNumber, setSuggestedTicketNumber] = useState(1);
@@ -244,7 +261,7 @@ export default function ChitSchemesPage() {
             </div>
 
             {/* Action Buttons */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
               <button
                 onClick={() => openSchemeDetailsModal(sch)}
                 className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
@@ -253,18 +270,60 @@ export default function ChitSchemesPage() {
                 <span>View Details</span>
               </button>
 
-              <button
-                onClick={() => openEnrollModal(sch)}
-                className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
-              >
-                <UserPlus className="w-3.5 h-3.5 text-blue-400" />
-                <span>Enroll Member</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openEnrollModal(sch)}
+                  className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Enroll Member</span>
+                </button>
+
+                <button
+                  onClick={() => setDeleteModalScheme(sch)}
+                  className="p-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-xl transition flex items-center justify-center"
+                  title="Delete Chit Scheme"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
           </div>
         ))}
       </div>
+
+      {/* Delete Chit Scheme Confirmation Modal */}
+      {deleteModalScheme && (
+        <Modal
+          isOpen={!!deleteModalScheme}
+          onClose={() => setDeleteModalScheme(null)}
+          title="Confirm Chit Scheme Deletion"
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+              <p className="text-rose-900 font-medium">
+                Are you sure you want to permanently delete scheme <strong>{deleteModalScheme.scheme_name}</strong> ({deleteModalScheme.scheme_code})? This will remove all associated member enrollments, auctions, and payment records for this scheme.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setDeleteModalScheme(null)}
+                className="px-4 py-2 border rounded-lg font-medium text-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteScheme}
+                className="px-4 py-2 bg-rose-600 text-white rounded-lg font-bold hover:bg-rose-700 transition"
+              >
+                Delete Scheme
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Create Scheme Modal */}
       {createModalOpen && (

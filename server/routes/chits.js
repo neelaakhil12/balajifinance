@@ -260,4 +260,32 @@ router.delete('/:id/enroll/:enrollmentId', authenticateToken, (req, res) => {
   }
 });
 
+// DELETE /api/chits/:id (Delete Chit Scheme and associated data)
+router.delete('/:id', authenticateToken, (req, res) => {
+  try {
+    const schemeId = req.params.id;
+    const scheme = db.prepare('SELECT * FROM chit_schemes WHERE id = ?').get(schemeId);
+
+    if (!scheme) {
+      return res.status(404).json({ success: false, message: 'Chit scheme not found.' });
+    }
+
+    // Delete associated enrollments, auctions, monthly_payments, dividends
+    db.prepare('DELETE FROM chit_enrollments WHERE scheme_id = ?').run(schemeId);
+    db.prepare('DELETE FROM auctions WHERE scheme_id = ?').run(schemeId);
+    db.prepare('DELETE FROM monthly_payments WHERE scheme_id = ?').run(schemeId);
+    db.prepare('DELETE FROM dividends WHERE scheme_id = ?').run(schemeId);
+
+    // Delete chit scheme
+    db.prepare('DELETE FROM chit_schemes WHERE id = ?').run(schemeId);
+
+    logAuditAction(req.user.id, req.user.name, 'DELETE_CHIT_SCHEME', 'Chit Schemes', `Deleted chit scheme ${scheme.scheme_code} (${scheme.scheme_name}).`);
+
+    return res.json({ success: true, message: `Chit scheme ${scheme.scheme_code} deleted successfully.` });
+  } catch (error) {
+    console.error('Delete chit scheme error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete chit scheme.' });
+  }
+});
+
 module.exports = router;

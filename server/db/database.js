@@ -515,6 +515,36 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
               supabase.from('members').delete().eq('id', mId).then(r => { if(r.error) console.error('Supabase member delete:', r.error); });
               return { changes: 1 };
             }
+            if (cleanSql.includes('DELETE FROM chit_enrollments WHERE scheme_id = ?')) {
+              const schId = Number(params[0]);
+              memoryStore.chit_enrollments = memoryStore.chit_enrollments.filter(e => e && e.scheme_id !== schId);
+              supabase.from('chit_enrollments').delete().eq('scheme_id', schId).then(r => { if(r.error) console.error('Supabase enrollment delete:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('DELETE FROM auctions WHERE scheme_id = ?')) {
+              const schId = Number(params[0]);
+              memoryStore.auctions = memoryStore.auctions.filter(a => a && a.scheme_id !== schId);
+              supabase.from('auctions').delete().eq('scheme_id', schId).then(r => { if(r.error) console.error('Supabase auction delete:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('DELETE FROM monthly_payments WHERE scheme_id = ?')) {
+              const schId = Number(params[0]);
+              memoryStore.monthly_payments = memoryStore.monthly_payments.filter(p => p && p.scheme_id !== schId);
+              supabase.from('monthly_payments').delete().eq('scheme_id', schId).then(r => { if(r.error) console.error('Supabase payment delete:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('DELETE FROM dividends WHERE scheme_id = ?')) {
+              const schId = Number(params[0]);
+              memoryStore.dividends = memoryStore.dividends.filter(d => d && d.scheme_id !== schId);
+              supabase.from('dividends').delete().eq('scheme_id', schId).then(r => { if(r.error) console.error('Supabase dividend delete:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('DELETE FROM chit_schemes WHERE id = ?')) {
+              const schId = Number(params[0]);
+              memoryStore.chit_schemes = memoryStore.chit_schemes.filter(s => s && s.id !== schId);
+              supabase.from('chit_schemes').delete().eq('id', schId).then(r => { if(r.error) console.error('Supabase scheme delete:', r.error); });
+              return { changes: 1 };
+            }
             if (cleanSql.includes('DELETE FROM chit_enrollments')) {
               const enrollId = params[0];
               memoryStore.chit_enrollments = memoryStore.chit_enrollments.filter(e => e && e.id !== Number(enrollId));
