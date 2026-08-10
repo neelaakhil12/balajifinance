@@ -27,6 +27,8 @@ app.use((req, res, next) => {
     if (err) return next();
     next();
   });
+});
+
 const db = require('./db/database');
 
 // Ensure database is 100% synchronized from Supabase Cloud DB on Vercel Serverless Functions
