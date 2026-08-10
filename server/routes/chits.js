@@ -26,12 +26,12 @@ router.get('/', authenticateToken, (req, res) => {
 
     query += ' ORDER BY id DESC';
 
-    const schemes = db.prepare(query).all(...params);
+    const schemes = db.prepare(query).all(...params) || [];
 
     // Enhance each scheme with enrolled members count and completed auctions count
     const enhancedSchemes = schemes.map(sch => {
-      const enrolledCount = db.prepare('SELECT COUNT(*) as cnt FROM chit_enrollments WHERE scheme_id = ?').get(sch.id).cnt;
-      const completedAuctionsCount = db.prepare('SELECT COUNT(*) as cnt FROM auctions WHERE scheme_id = ?').get(sch.id).cnt;
+      const enrolledCount = (db.prepare('SELECT COUNT(*) as cnt FROM chit_enrollments WHERE scheme_id = ?').get(sch.id) || {}).cnt || 0;
+      const completedAuctionsCount = (db.prepare('SELECT COUNT(*) as cnt FROM auctions WHERE scheme_id = ?').get(sch.id) || {}).cnt || 0;
       return {
         ...sch,
         enrolled_members_count: enrolledCount,
@@ -77,7 +77,7 @@ router.post('/', authenticateToken, (req, res) => {
     const commAmount = roundToTwoDecimals((chitVal * commPercent) / 100);
 
     const now = new Date().toISOString();
-    const maxId = db.prepare('SELECT MAX(id) as max_id FROM chit_schemes').get().max_id || 0;
+    const maxId = (db.prepare('SELECT MAX(id) as max_id FROM chit_schemes').get() || {}).max_id || 0;
     const schemeCode = `BSF-SCH-${1001 + maxId}`;
 
     const startDateVal = start_date || new Date().toISOString().split('T')[0];
@@ -131,7 +131,7 @@ router.get('/:id', authenticateToken, (req, res) => {
       JOIN members m ON ce.member_id = m.id
       WHERE ce.scheme_id = ?
       ORDER BY ce.ticket_number ASC
-    `).all(schemeId);
+    `).all(schemeId) || [];
 
     // Auctions history
     const auctions = db.prepare(`
@@ -140,14 +140,14 @@ router.get('/:id', authenticateToken, (req, res) => {
       JOIN members m ON a.winning_member_id = m.id
       WHERE a.scheme_id = ?
       ORDER BY a.month_number ASC
-    `).all(schemeId);
+    `).all(schemeId) || [];
 
     // Enrich enrolled members with real-time payment stats
     const enrolledMembers = rawEnrolledMembers.map(m => {
       const pmtRecords = db.prepare(`
         SELECT * FROM monthly_payments
         WHERE scheme_id = ? AND member_id = ? AND (ticket_number = ? OR ticket_number IS NULL OR ticket_number = 1)
-      `).all(schemeId, m.member_id, m.ticket_number || 1);
+      `).all(schemeId, m.member_id, m.ticket_number || 1) || [];
 
       let paidMonths = 0;
       let totalAmountPaid = 0;
@@ -168,7 +168,7 @@ router.get('/:id', authenticateToken, (req, res) => {
         }
       });
 
-      const auctionWin = auctions.find(a => Number(a.winning_member_id) === Number(m.member_id) && (Number(a.winning_ticket_number || 1) === Number(m.ticket_number || 1)));
+      const auctionWin = (auctions || []).find(a => a && Number(a.winning_member_id) === Number(m.member_id) && (Number(a.winning_ticket_number || 1) === Number(m.ticket_number || 1)));
 
       return {
         ...m,

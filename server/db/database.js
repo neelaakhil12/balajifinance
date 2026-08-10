@@ -167,15 +167,20 @@ if (!isNative) {
               return [...memoryStore.chit_schemes];
             }
             if (cleanSql.includes('FROM auctions')) {
-              return memoryStore.auctions.map(a => {
+              let filtered = [...memoryStore.auctions];
+              if (params.length >= 1 && params[0] != null) {
+                const schId = Number(params[0]);
+                filtered = filtered.filter(a => a && a.scheme_id === schId);
+              }
+              return filtered.map(a => {
                 const sch = memoryStore.chit_schemes.find(s => s && s.id === a.scheme_id) || {};
                 const mbr = memoryStore.members.find(m => m && m.id === a.winning_member_id) || {};
                 return {
                   ...a,
                   scheme_name: sch.scheme_name,
                   scheme_code: sch.scheme_code,
-                  winner_name: mbr.name,
-                  winner_code: mbr.member_code
+                  winner_name: mbr.name || ('Member #' + (a.winning_member_id || '')),
+                  winner_code: mbr.member_code || ''
                 };
               });
             }
@@ -190,7 +195,16 @@ if (!isNative) {
                 });
                 return Object.values(grouped);
               }
-              return memoryStore.monthly_payments.map(p => {
+              let filtered = [...memoryStore.monthly_payments];
+              if (params.length >= 1 && params[0] != null) {
+                const schId = Number(params[0]);
+                filtered = filtered.filter(p => p && p.scheme_id === schId);
+              }
+              if (params.length >= 2 && params[1] != null) {
+                const mbrId = Number(params[1]);
+                filtered = filtered.filter(p => p && p.member_id === mbrId);
+              }
+              return filtered.map(p => {
                 const sch = memoryStore.chit_schemes.find(s => s && s.id === p.scheme_id) || {};
                 const mbr = memoryStore.members.find(m => m && m.id === p.member_id) || {};
                 return {
