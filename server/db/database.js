@@ -138,6 +138,9 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
             if (cleanSql.includes('SELECT * FROM chit_schemes WHERE id = ?')) {
               return memoryStore.chit_schemes.find(s => s && (s.id === Number(params[0]) || String(s.id) === String(params[0]) || s.scheme_code === String(params[0])));
             }
+            if (cleanSql.includes('SELECT * FROM chit_schemes WHERE scheme_code = ?')) {
+              return memoryStore.chit_schemes.find(s => s && s.scheme_code && String(s.scheme_code).toLowerCase() === String(params[0]).toLowerCase());
+            }
             if (cleanSql.includes('FROM chit_enrollments')) {
               const schId = params[0] ? Number(params[0]) : null;
               const cnt = schId ? memoryStore.chit_enrollments.filter(e => e && e.scheme_id === schId).length : memoryStore.chit_enrollments.length;

@@ -186,7 +186,7 @@ router.post(
       // Insert Member
       const result = db.prepare(`
         INSERT INTO members (member_code, name, email, contact_no_1, contact_no_2, aadhaar_no, kyc_status, chit_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, 'Verified', 'Active', ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         finalMemberCode,
         name.trim(),
@@ -194,6 +194,8 @@ router.post(
         contact_no_1.trim(),
         contact_no_2 ? contact_no_2.trim() : '',
         aadhaar_id_no.trim(),
+        'Verified',
+        'Active',
         now,
         now
       );

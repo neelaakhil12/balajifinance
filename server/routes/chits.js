@@ -118,7 +118,10 @@ router.post('/', authenticateToken, (req, res) => {
 router.get('/:id', authenticateToken, (req, res) => {
   try {
     const schemeId = req.params.id;
-    const scheme = db.prepare('SELECT * FROM chit_schemes WHERE id = ?').get(schemeId);
+    let scheme = db.prepare('SELECT * FROM chit_schemes WHERE id = ?').get(schemeId);
+    if (!scheme) {
+      scheme = db.prepare('SELECT * FROM chit_schemes WHERE scheme_code = ?').get(schemeId);
+    }
 
     if (!scheme) {
       return res.status(404).json({ success: false, message: 'Chit scheme not found.' });
@@ -209,10 +212,14 @@ router.post('/:id/enroll', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, message: 'Member selection is required for enrollment.' });
     }
 
-    const scheme = db.prepare('SELECT * FROM chit_schemes WHERE id = ?').get(schemeId);
+    let scheme = db.prepare('SELECT * FROM chit_schemes WHERE id = ?').get(schemeId);
+    if (!scheme) {
+      scheme = db.prepare('SELECT * FROM chit_schemes WHERE scheme_code = ?').get(schemeId);
+    }
     if (!scheme) {
       return res.status(404).json({ success: false, message: 'Chit scheme not found.' });
     }
+    const realSchemeId = scheme.id;
 
     // Check existing enrollments count
     const currentEnrolled = db.prepare('SELECT COUNT(*) as cnt FROM chit_enrollments WHERE scheme_id = ?').get(schemeId).cnt;
