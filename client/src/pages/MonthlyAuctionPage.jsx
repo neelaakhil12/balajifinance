@@ -113,6 +113,12 @@ export default function MonthlyAuctionPage() {
     return map;
   }, [schemeDetails]);
 
+  // Check if selected month number already has a recorded auction in this scheme
+  const isMonthAlreadyRecorded = React.useMemo(() => {
+    if (!schemeDetails?.auctions || !monthNumber) return false;
+    return schemeDetails.auctions.some(a => Number(a.month_number) === Number(monthNumber));
+  }, [schemeDetails, monthNumber]);
+
   // Live Server Financial Calculation Preview Trigger
   useEffect(() => {
     if (selectedSchemeId && winningBidDiscount !== '' && Number(winningBidDiscount) >= 0) {
@@ -315,6 +321,17 @@ export default function MonthlyAuctionPage() {
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+
+            {/* Duplicate Month Alert Banner */}
+            {isMonthAlreadyRecorded && (
+              <div className="sm:col-span-2 p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-3 text-rose-800 text-xs font-semibold">
+                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                <div>
+                  <span className="font-bold block text-rose-900">⛔ Auction for Month {monthNumber} Already Recorded</span>
+                  <span className="text-[11px] text-rose-700">An auction has already been recorded for Month {monthNumber} in this scheme. Please select Month {schemeDetails?.auctions?.length + 1} or delete the existing Month {monthNumber} record to re-run.</span>
+                </div>
+              </div>
+            )}
 
             {/* Auction Date */}
             <div>
@@ -760,7 +777,7 @@ export default function MonthlyAuctionPage() {
                     {auc.winner_name} ({auc.winner_code})
                     <span className="font-mono text-[10px] text-blue-600 block">Ticket #{auc.winning_ticket_number || 1}</span>
                   </td>
-                  <td className="p-3.5 font-semibold text-amber-600">-{formatCurrency(auc.winning_bid_discount)}</td>
+                  <td className="p-3.5 font-semibold text-amber-600">{formatCurrency(auc.winning_bid_discount)}</td>
                   <td className="p-3.5 text-slate-600">{formatCurrency(auc.foreman_commission)}</td>
                   <td className="p-3.5 font-extrabold text-emerald-700">{formatCurrency(auc.winner_payout)}</td>
                   <td className="p-3.5 font-bold text-blue-700">{formatCurrency(auc.dividend_per_member)}</td>

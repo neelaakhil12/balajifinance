@@ -30,12 +30,12 @@ router.get('/', authenticateToken, (req, res) => {
 
     const auctions = rawAuctions.map(a => {
       const calc = calculateAuctionFinancials({
-        totalChitValue: a.total_chit_value,
-        auctionDiscount: a.winning_bid_discount,
-        foremanCommissionPercent: a.foreman_commission_percent,
-        foremanCommissionAmount: a.foreman_commission_amount,
-        numberOfMembers: a.number_of_members,
-        monthlyContribution: a.monthly_contribution
+        totalChitValue: a.total_chit_value || 100000,
+        auctionDiscount: a.winning_bid_discount || 0,
+        foremanCommissionPercent: a.foreman_commission_percent || 5,
+        foremanCommissionAmount: a.foreman_commission_amount || 5000,
+        numberOfMembers: a.number_of_members || 20,
+        monthlyContribution: a.monthly_contribution || 5000
       });
 
       // Update stored record in DB if outdated

@@ -302,6 +302,11 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
                   ...a,
                   scheme_name: sch.scheme_name,
                   scheme_code: sch.scheme_code,
+                  total_chit_value: sch.total_chit_value,
+                  monthly_contribution: sch.monthly_contribution,
+                  number_of_members: sch.number_of_members,
+                  foreman_commission_percent: sch.foreman_commission_percent,
+                  foreman_commission_amount: sch.foreman_commission_amount,
                   winner_name: mbr.name || ('Member #' + (a.winning_member_id || '')),
                   winner_code: mbr.member_code || ''
                 };
