@@ -118,10 +118,13 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
               const em = String(params[0] || '').trim().toLowerCase();
               return memoryStore.users.find(u => u && u.email && u.email.toLowerCase() === em);
             }
+            if (cleanSql.includes('WHERE email = ?') && cleanSql.includes('users')) {
+              return memoryStore.users.find(u => u && u.email && u.email.toLowerCase() === String(params[0]).toLowerCase());
+            }
             if (cleanSql.includes('FROM users WHERE id = ?')) {
               return memoryStore.users.find(u => u && u.id === Number(params[0]));
             }
-            if (cleanSql.includes('SELECT COUNT(*) as count FROM users') || cleanSql.includes('FROM users')) {
+            if (cleanSql.includes('COUNT') && cleanSql.includes('users')) {
               return { count: memoryStore.users.length, cnt: memoryStore.users.length };
             }
             if (cleanSql.includes('SELECT MAX(id) as max_id FROM members')) {
