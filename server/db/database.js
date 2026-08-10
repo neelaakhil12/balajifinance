@@ -203,10 +203,16 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
               return memoryStore.chit_enrollments.find(e => e && (e.scheme_id === Number(schParam) || String(e.scheme_id) === String(schParam)) && Number(e.ticket_number) === tckParam);
             }
             if (cleanSql.includes('SELECT id FROM auctions WHERE scheme_id = ? AND month_number = ?')) {
-              return memoryStore.auctions.find(a => a && a.scheme_id === Number(params[0]) && a.month_number === Number(params[1]));
+              const schId = params[0];
+              return memoryStore.auctions.find(a => a && (a.scheme_id === Number(schId) || String(a.scheme_id) === String(schId)) && a.month_number === Number(params[1]));
+            }
+            if (cleanSql.includes('winning_ticket_number') && cleanSql.includes('winning_member_id') && cleanSql.includes('auctions')) {
+              const schId = params[0]; const ticketNo = params[1]; const memberId = params[2];
+              return memoryStore.auctions.find(a => a && (a.scheme_id === Number(schId) || String(a.scheme_id) === String(schId)) && Number(a.winning_ticket_number) === Number(ticketNo) && Number(a.winning_member_id) === Number(memberId));
             }
             if (cleanSql.includes('SELECT id, month_number FROM auctions WHERE scheme_id = ? AND winning_member_id = ?')) {
-              return memoryStore.auctions.find(a => a && a.scheme_id === Number(params[0]) && a.winning_member_id === Number(params[1]));
+              const schId = params[0];
+              return memoryStore.auctions.find(a => a && (a.scheme_id === Number(schId) || String(a.scheme_id) === String(schId)) && a.winning_member_id === Number(params[1]));
             }
             if (cleanSql.includes('SELECT * FROM monthly_payments WHERE id = ?')) {
               return memoryStore.monthly_payments.find(p => p && p.id === Number(params[0]));
@@ -473,7 +479,7 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
             }
             if (cleanSql.includes('UPDATE monthly_payments')) {
               const pId = params[params.length - 1];
-              const item = memoryStore.monthly_payments.find(p => p.id === Number(pId));
+              const item = memoryStore.monthly_payments.find(p => p.id === Number(pId) || String(p.id) === String(pId));
               if (item) {
                 item.amount_paid = params[0];
                 item.payment_date = params[1];
@@ -481,20 +487,64 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
                 item.reference_no = params[3];
                 item.status = params[4];
                 item.notes = params[5];
+                // Persist to Supabase
+                supabase.from('monthly_payments').update({
+                  amount_paid: item.amount_paid, payment_date: item.payment_date,
+                  payment_mode: item.payment_mode, reference_no: item.reference_no,
+                  status: item.status, notes: item.notes
+                }).eq('id', item.id).then(r => { if(r.error) console.error('Supabase payment update:', r.error); });
+              }
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('UPDATE chit_schemes')) {
+              const schId = params[params.length - 1];
+              const item = memoryStore.chit_schemes.find(s => s.id === Number(schId) || String(s.id) === String(schId));
+              if (item) {
+                // SET scheme_name=?,total_chit_value=?,duration_months=?,number_of_members=?,monthly_contribution=?,foreman_commission_percent=?,start_date=?,end_date=?,status=?,updated_at=?
+                if (params.length >= 11) {
+                  item.scheme_name = params[0]; item.total_chit_value = params[1];
+                  item.duration_months = params[2]; item.number_of_members = params[3];
+                  item.monthly_contribution = params[4]; item.foreman_commission_percent = params[5];
+                  item.start_date = params[6]; item.end_date = params[7];
+                  item.status = params[8]; item.updated_at = params[9];
+                }
+                supabase.from('chit_schemes').update({
+                  scheme_name: item.scheme_name, total_chit_value: item.total_chit_value,
+                  duration_months: item.duration_months, number_of_members: item.number_of_members,
+                  monthly_contribution: item.monthly_contribution, foreman_commission_percent: item.foreman_commission_percent,
+                  start_date: item.start_date, end_date: item.end_date, status: item.status
+                }).eq('id', item.id).then(r => { if(r.error) console.error('Supabase scheme update:', r.error); });
               }
               return { changes: 1 };
             }
             if (cleanSql.includes('UPDATE members')) {
               const mId = params[params.length - 1];
-              const item = memoryStore.members.find(m => m.id === Number(mId));
+              const item = memoryStore.members.find(m => m.id === Number(mId) || String(m.id) === String(mId));
               if (item) {
-                if (params.length >= 8) {
+                if (params.length >= 9) {
+                  // SET member_code=?,name=?,email=?,contact_no_1=?,contact_no_2=?,aadhaar_no=?,kyc_status=?,chit_status=?,updated_at=?
+                  item.member_code = params[0]; item.name = params[1]; item.email = params[2];
+                  item.contact_no_1 = params[3]; item.contact_no_2 = params[4];
+                  item.aadhaar_no = params[5]; item.kyc_status = params[6];
+                  item.chit_status = params[7]; item.updated_at = params[8];
+                } else if (params.length >= 8) {
                   item.name = params[0]; item.email = params[1]; item.contact_no_1 = params[2];
                   item.contact_no_2 = params[3]; item.aadhaar_no = params[4]; item.kyc_status = params[5];
                   item.chit_status = params[6];
                 } else {
                   item.chit_status = 'Deactivated'; item.kyc_status = 'Inactive';
                 }
+                // Persist to Supabase
+                const updatePayload = {};
+                if (item.member_code !== undefined) updatePayload.member_code = item.member_code;
+                if (item.name !== undefined) updatePayload.name = item.name;
+                if (item.email !== undefined) updatePayload.email = item.email;
+                if (item.contact_no_1 !== undefined) updatePayload.contact_no_1 = item.contact_no_1;
+                if (item.contact_no_2 !== undefined) updatePayload.contact_no_2 = item.contact_no_2;
+                if (item.aadhaar_no !== undefined) updatePayload.aadhaar_no = item.aadhaar_no;
+                if (item.kyc_status !== undefined) updatePayload.kyc_status = item.kyc_status;
+                if (item.chit_status !== undefined) updatePayload.chit_status = item.chit_status;
+                supabase.from('members').update(updatePayload).eq('id', item.id).then(r => { if(r.error) console.error('Supabase member update:', r.error); });
               }
               return { changes: 1 };
             }

@@ -267,6 +267,50 @@ router.delete('/:id/enroll/:enrollmentId', authenticateToken, (req, res) => {
   }
 });
 
+// PUT /api/chits/:id (Edit Chit Scheme)
+router.put('/:id', authenticateToken, (req, res) => {
+  try {
+    const schemeId = req.params.id;
+    let scheme = db.prepare('SELECT * FROM chit_schemes WHERE id = ?').get(schemeId);
+    if (!scheme) {
+      scheme = db.prepare('SELECT * FROM chit_schemes WHERE scheme_code = ?').get(schemeId);
+    }
+    if (!scheme) {
+      return res.status(404).json({ success: false, message: 'Chit scheme not found.' });
+    }
+
+    const { scheme_name, total_chit_value, duration_months, number_of_members, monthly_contribution, foreman_commission_percent, start_date, end_date, status } = req.body;
+
+    const now = new Date().toISOString();
+    db.prepare(`
+      UPDATE chit_schemes
+      SET scheme_name = ?, total_chit_value = ?, duration_months = ?, number_of_members = ?,
+          monthly_contribution = ?, foreman_commission_percent = ?, start_date = ?, end_date = ?,
+          status = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      scheme_name || scheme.scheme_name,
+      total_chit_value || scheme.total_chit_value,
+      duration_months || scheme.duration_months,
+      number_of_members || scheme.number_of_members,
+      monthly_contribution || scheme.monthly_contribution,
+      foreman_commission_percent || scheme.foreman_commission_percent,
+      start_date || scheme.start_date,
+      end_date || scheme.end_date,
+      status || scheme.status,
+      now,
+      scheme.id
+    );
+
+    logAuditAction(req.user.id, req.user.name, 'UPDATE_CHIT_SCHEME', 'Chit Schemes', `Updated chit scheme ${scheme.scheme_code}.`);
+
+    return res.json({ success: true, message: 'Chit scheme updated successfully.' });
+  } catch (error) {
+    console.error('Update chit scheme error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update chit scheme.' });
+  }
+});
+
 // DELETE /api/chits/:id (Delete Chit Scheme and associated data)
 router.delete('/:id', authenticateToken, (req, res) => {
   try {

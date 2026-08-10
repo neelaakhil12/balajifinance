@@ -121,7 +121,10 @@ router.post('/', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, message: 'All required auction fields must be provided.' });
     }
 
-    const scheme = db.prepare('SELECT * FROM chit_schemes WHERE id = ?').get(scheme_id);
+    let scheme = db.prepare('SELECT * FROM chit_schemes WHERE id = ?').get(scheme_id);
+    if (!scheme) {
+      scheme = db.prepare('SELECT * FROM chit_schemes WHERE scheme_code = ?').get(scheme_id);
+    }
     if (!scheme) {
       return res.status(404).json({ success: false, message: 'Selected chit scheme does not exist.' });
     }
