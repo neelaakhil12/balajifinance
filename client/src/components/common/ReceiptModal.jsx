@@ -178,7 +178,7 @@ export default function ReceiptModal({ isOpen, onClose, payment }) {
 
             <div style="display: flex; justify-content: flex-end; margin-top: 6px;">
               <div style="display: flex; justify-content: space-between; width: 65%; font-weight: bold; font-size: 11px; border-top: 1px solid #94a3b8; padding-top: 3px;">
-                <span>To Be Paid</span>
+                <span>Net Amount Payable</span>
                 <span style="font-weight: 800; color: #064e3b;">${formatDecimal(toBePaidVal)}</span>
               </div>
             </div>
@@ -295,7 +295,7 @@ export default function ReceiptModal({ isOpen, onClose, payment }) {
 
               <div className="pt-1.5 flex justify-end">
                 <div className="flex justify-between w-[65%] font-mono font-bold text-[11px] border-t border-slate-400 pt-0.5">
-                  <span>To Be Paid</span>
+                  <span>Net Amount Payable</span>
                   <span className="text-emerald-900 font-extrabold">{formatDecimal(toBePaidVal)}</span>
                 </div>
               </div>
