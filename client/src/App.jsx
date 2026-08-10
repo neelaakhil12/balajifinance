@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 
 import Header from './components/layout/Header';
 import Sidebar from './components/layout/Sidebar';
 
+import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import AddMemberPage from './pages/AddMemberPage';
 import MembersPage from './pages/MembersPage';
@@ -39,7 +41,6 @@ function AppLayout() {
             <Route path="/dividends" element={<DividendsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
@@ -49,9 +50,31 @@ function AppLayout() {
 }
 
 export default function App() {
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
+        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-sm font-medium text-slate-400">Loading Balaji Savings & Finance...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
+      <Route path="/login" element={<Navigate to="/" replace />} />
       <Route path="/*" element={<AppLayout />} />
     </Routes>
   );
 }
+
