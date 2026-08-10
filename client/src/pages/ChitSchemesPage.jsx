@@ -25,6 +25,15 @@ export default function ChitSchemesPage() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState({ type: '', message: '' });
 
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const calculateEndDateStr = (startDateStr, months) => {
+    if (!startDateStr || !months) return '';
+    const d = new Date(startDateStr);
+    if (isNaN(d.getTime())) return '';
+    d.setMonth(d.getMonth() + Number(months));
+    return d.toISOString().split('T')[0];
+  };
+
   // Create Scheme Modal
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [newScheme, setNewScheme] = useState({
@@ -33,8 +42,21 @@ export default function ChitSchemesPage() {
     duration_months: 20,
     number_of_members: 20,
     monthly_contribution: 5000,
-    foreman_commission_percent: 5
+    foreman_commission_percent: 5,
+    start_date: getTodayStr(),
+    end_date: calculateEndDateStr(getTodayStr(), 20)
   });
+
+  const handleStartDateChange = (val) => {
+    const calculatedEnd = calculateEndDateStr(val, newScheme.duration_months);
+    setNewScheme(prev => ({ ...prev, start_date: val, end_date: calculatedEnd }));
+  };
+
+  const handleDurationChange = (val) => {
+    const dur = Number(val);
+    const calculatedEnd = calculateEndDateStr(newScheme.start_date, dur);
+    setNewScheme(prev => ({ ...prev, duration_months: dur, end_date: calculatedEnd }));
+  };
 
   // Enroll Member Modal
   const [enrollModalScheme, setEnrollModalScheme] = useState(null);
@@ -245,6 +267,17 @@ export default function ChitSchemesPage() {
                 </div>
               </div>
 
+              {/* Start & End Dates */}
+              <div className="flex items-center justify-between text-[11px] font-semibold text-slate-600 px-1 py-0.5">
+                <div className="flex items-center gap-1.5 text-slate-600">
+                  <Calendar className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Start: <strong className="text-slate-900 font-bold">{sch.start_date ? sch.start_date.split('T')[0] : 'N/A'}</strong></span>
+                </div>
+                <div className="flex items-center gap-1.5 text-slate-600">
+                  <span>End: <strong className="text-slate-900 font-bold">{sch.end_date ? sch.end_date.split('T')[0] : 'N/A'}</strong></span>
+                </div>
+              </div>
+
               {/* Progress bar */}
               <div>
                 <div className="flex justify-between text-xs mb-1">
@@ -362,8 +395,31 @@ export default function ChitSchemesPage() {
                   type="number"
                   required
                   value={newScheme.duration_months}
-                  onChange={(e) => setNewScheme({ ...newScheme, duration_months: Number(e.target.value) })}
+                  onChange={(e) => handleDurationChange(e.target.value)}
                   className="w-full px-3 py-2 border rounded-xl"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Scheme Start Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={newScheme.start_date}
+                  onChange={(e) => handleStartDateChange(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-xl font-semibold text-slate-800"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Scheme End Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={newScheme.end_date}
+                  onChange={(e) => setNewScheme({ ...newScheme, end_date: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-xl font-semibold text-slate-800"
                 />
               </div>
             </div>
