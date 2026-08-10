@@ -248,13 +248,13 @@ router.post(
         now
       );
 
-      logAuditAction(req.user.id, req.user.name, 'CREATE_MEMBER', 'Members', `Created member ${memberCode} (${name.trim()}) with KYC documents.`);
+      logAuditAction(req.user.id, req.user.name, 'CREATE_MEMBER', 'Members', `Created member ${finalMemberCode} (${name.trim()}) with KYC documents.`);
 
       return res.status(201).json({
         success: true,
         message: 'Member registered successfully with verified KYC documents.',
         memberId,
-        memberCode
+        memberCode: finalMemberCode
       });
     } catch (error) {
       console.error('Create member error:', error);
