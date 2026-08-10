@@ -61,40 +61,54 @@ if (!isNative) {
             if (cleanSql.includes('FROM users WHERE id = ?')) {
               return memoryStore.users.find(u => u && u.id === Number(params[0]));
             }
-            if (cleanSql.includes('SELECT COUNT(*) as count FROM users')) {
-              return { count: memoryStore.users.length };
+            if (cleanSql.includes('SELECT COUNT(*) as count FROM users') || cleanSql.includes('FROM users')) {
+              return { count: memoryStore.users.length, cnt: memoryStore.users.length };
             }
             if (cleanSql.includes('SELECT MAX(id) as max_id FROM members')) {
-              const max = memoryStore.members.reduce((m, item) => (item.id > m ? item.id : m), 0);
+              const max = memoryStore.members.reduce((m, item) => (item && item.id > m ? item.id : m), 0);
               return { max_id: max };
             }
             if (cleanSql.includes('SELECT MAX(id) as max_id FROM chit_schemes')) {
-              const max = memoryStore.chit_schemes.reduce((m, item) => (item.id > m ? item.id : m), 0);
+              const max = memoryStore.chit_schemes.reduce((m, item) => (item && item.id > m ? item.id : m), 0);
               return { max_id: max };
             }
             if (cleanSql.includes('SELECT * FROM members WHERE id = ?')) {
-              return memoryStore.members.find(m => m.id === Number(params[0]));
+              return memoryStore.members.find(m => m && m.id === Number(params[0]));
             }
             if (cleanSql.includes('SELECT * FROM chit_schemes WHERE id = ?')) {
-              return memoryStore.chit_schemes.find(s => s.id === Number(params[0]));
+              return memoryStore.chit_schemes.find(s => s && s.id === Number(params[0]));
             }
-            if (cleanSql.includes('SELECT COUNT(*) as cnt FROM chit_enrollments WHERE scheme_id = ?')) {
-              const cnt = memoryStore.chit_enrollments.filter(e => e.scheme_id === Number(params[0])).length;
-              return { cnt, total: cnt };
+            if (cleanSql.includes('FROM chit_enrollments')) {
+              const schId = params[0] ? Number(params[0]) : null;
+              const cnt = schId ? memoryStore.chit_enrollments.filter(e => e && e.scheme_id === schId).length : memoryStore.chit_enrollments.length;
+              return { cnt, total: cnt, count: cnt };
             }
-            if (cleanSql.includes('SELECT COUNT(*) as cnt FROM auctions WHERE scheme_id = ?')) {
-              const cnt = memoryStore.auctions.filter(a => a.scheme_id === Number(params[0])).length;
-              return { cnt };
+            if (cleanSql.includes('FROM auctions')) {
+              const schId = params[0] ? Number(params[0]) : null;
+              const cnt = schId ? memoryStore.auctions.filter(a => a && a.scheme_id === schId).length : memoryStore.auctions.length;
+              return { cnt, total: cnt, count: cnt };
             }
-            if (cleanSql.includes('SELECT COUNT(*) as cnt FROM chit_schemes WHERE status = ?')) {
-              const cnt = memoryStore.chit_schemes.filter(s => s.status === params[0]).length;
-              return { cnt };
+            if (cleanSql.includes('FROM chit_schemes') && (cleanSql.includes('COUNT') || cleanSql.includes('SUM'))) {
+              let targetStatus = params[0];
+              if (!targetStatus) {
+                if (cleanSql.includes("'Active'")) targetStatus = 'Active';
+                else if (cleanSql.includes("'Completed'")) targetStatus = 'Completed';
+                else if (cleanSql.includes("'Upcoming'")) targetStatus = 'Upcoming';
+              }
+              const cnt = targetStatus
+                ? memoryStore.chit_schemes.filter(s => s && s.status === targetStatus).length
+                : memoryStore.chit_schemes.length;
+              const totalVal = memoryStore.chit_schemes
+                .filter(s => s && (targetStatus ? s.status === targetStatus : true))
+                .reduce((acc, s) => acc + (s.total_chit_value || 0), 0);
+              return { cnt, count: cnt, total: totalVal };
             }
-            if (cleanSql.includes('SELECT COUNT(*) as cnt FROM members')) {
-              return { cnt: memoryStore.members.filter(m => m.chit_status !== 'Deactivated').length };
+            if (cleanSql.includes('FROM members') && cleanSql.includes('COUNT')) {
+              const cnt = memoryStore.members.filter(m => m && m.chit_status !== 'Deactivated').length;
+              return { cnt, count: cnt };
             }
             if (cleanSql.includes('SUM(total_chit_value)')) {
-              const total = memoryStore.chit_schemes.filter(s => s.status === 'Active').reduce((acc, s) => acc + s.total_chit_value, 0);
+              const total = memoryStore.chit_schemes.filter(s => s && s.status === 'Active').reduce((acc, s) => acc + (s.total_chit_value || 0), 0);
               return { total };
             }
             if (cleanSql.includes('SUM(amount_paid)')) {
@@ -107,41 +121,42 @@ if (!isNative) {
             }
             if (cleanSql.includes('SUM(net_amount_due - amount_paid)')) {
               const total = memoryStore.monthly_payments
-                .filter(p => ['Pending', 'Partially Paid', 'Overdue'].includes(p.status))
-                .reduce((acc, p) => acc + (p.net_amount_due - p.amount_paid), 0);
+                .filter(p => p && ['Pending', 'Partially Paid', 'Overdue'].includes(p.status))
+                .reduce((acc, p) => acc + ((p.net_amount_due || 0) - (p.amount_paid || 0)), 0);
               return { total };
             }
             if (cleanSql.includes('SELECT * FROM kyc_documents WHERE id = ? AND member_id = ?')) {
-              return memoryStore.kyc_documents.find(d => d.id === Number(params[1]) && d.member_id === Number(params[0]));
+              return memoryStore.kyc_documents.find(d => d && d.id === Number(params[1]) && d.member_id === Number(params[0]));
             }
             if (cleanSql.includes('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND member_id = ?')) {
-              return memoryStore.chit_enrollments.find(e => e.scheme_id === Number(params[0]) && e.member_id === Number(params[1]));
+              return memoryStore.chit_enrollments.find(e => e && e.scheme_id === Number(params[0]) && e.member_id === Number(params[1]));
             }
             if (cleanSql.includes('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND ticket_number = ?')) {
-              return memoryStore.chit_enrollments.find(e => e.scheme_id === Number(params[0]) && e.ticket_number === Number(params[1]));
+              return memoryStore.chit_enrollments.find(e => e && e.scheme_id === Number(params[0]) && e.ticket_number === Number(params[1]));
             }
             if (cleanSql.includes('SELECT id FROM auctions WHERE scheme_id = ? AND month_number = ?')) {
-              return memoryStore.auctions.find(a => a.scheme_id === Number(params[0]) && a.month_number === Number(params[1]));
+              return memoryStore.auctions.find(a => a && a.scheme_id === Number(params[0]) && a.month_number === Number(params[1]));
             }
             if (cleanSql.includes('SELECT id, month_number FROM auctions WHERE scheme_id = ? AND winning_member_id = ?')) {
-              return memoryStore.auctions.find(a => a.scheme_id === Number(params[0]) && a.winning_member_id === Number(params[1]));
+              return memoryStore.auctions.find(a => a && a.scheme_id === Number(params[0]) && a.winning_member_id === Number(params[1]));
             }
             if (cleanSql.includes('SELECT * FROM monthly_payments WHERE id = ?')) {
-              return memoryStore.monthly_payments.find(p => p.id === Number(params[0]));
+              return memoryStore.monthly_payments.find(p => p && p.id === Number(params[0]));
             }
             if (cleanSql.includes('SELECT * FROM monthly_payments WHERE scheme_id = ? AND member_id = ? AND month_number = ?')) {
-              return memoryStore.monthly_payments.find(p => p.scheme_id === Number(params[0]) && p.member_id === Number(params[1]) && p.month_number === Number(params[2]));
+              return memoryStore.monthly_payments.find(p => p && p.scheme_id === Number(params[0]) && p.member_id === Number(params[1]) && p.month_number === Number(params[2]));
             }
             if (cleanSql.includes('SELECT id FROM members WHERE email = ?')) {
-              return memoryStore.members.find(m => m.email.toLowerCase() === String(params[0]).toLowerCase());
+              return memoryStore.members.find(m => m && m.email && m.email.toLowerCase() === String(params[0]).toLowerCase());
             }
             if (cleanSql.includes('SELECT id FROM members WHERE aadhaar_no = ?')) {
-              return memoryStore.members.find(m => m.aadhaar_no === String(params[0]));
+              return memoryStore.members.find(m => m && m.aadhaar_no === String(params[0]));
             }
           } catch (e) {
             console.error('JS Engine GET error:', e);
           }
-          return null;
+          // Default fallback object for get queries to avoid null reference errors
+          return { cnt: 0, count: 0, total: 0, max_id: 0 };
         },
         all: (...params) => {
           try {
@@ -153,8 +168,8 @@ if (!isNative) {
             }
             if (cleanSql.includes('FROM auctions')) {
               return memoryStore.auctions.map(a => {
-                const sch = memoryStore.chit_schemes.find(s => s.id === a.scheme_id) || {};
-                const mbr = memoryStore.members.find(m => m.id === a.winning_member_id) || {};
+                const sch = memoryStore.chit_schemes.find(s => s && s.id === a.scheme_id) || {};
+                const mbr = memoryStore.members.find(m => m && m.id === a.winning_member_id) || {};
                 return {
                   ...a,
                   scheme_name: sch.scheme_name,
@@ -165,9 +180,19 @@ if (!isNative) {
               });
             }
             if (cleanSql.includes('FROM monthly_payments')) {
+              if (cleanSql.includes('GROUP BY month_number')) {
+                const grouped = {};
+                memoryStore.monthly_payments.forEach(p => {
+                  const m = p.month_number || 1;
+                  if (!grouped[m]) grouped[m] = { month_number: m, collected: 0, target: 0 };
+                  grouped[m].collected += (p.amount_paid || 0);
+                  grouped[m].target += (p.net_amount_due || 0);
+                });
+                return Object.values(grouped);
+              }
               return memoryStore.monthly_payments.map(p => {
-                const sch = memoryStore.chit_schemes.find(s => s.id === p.scheme_id) || {};
-                const mbr = memoryStore.members.find(m => m.id === p.member_id) || {};
+                const sch = memoryStore.chit_schemes.find(s => s && s.id === p.scheme_id) || {};
+                const mbr = memoryStore.members.find(m => m && m.id === p.member_id) || {};
                 return {
                   ...p,
                   scheme_name: sch.scheme_name,
@@ -175,15 +200,24 @@ if (!isNative) {
                   member_name: mbr.name,
                   member_code: mbr.member_code,
                   contact_no_1: mbr.contact_no_1,
-                  pending_balance: p.net_amount_due - p.amount_paid
+                  pending_balance: (p.net_amount_due || 0) - (p.amount_paid || 0)
                 };
               });
             }
             if (cleanSql.includes('FROM dividends')) {
+              if (cleanSql.includes('GROUP BY month_number')) {
+                const grouped = {};
+                memoryStore.dividends.forEach(d => {
+                  const m = d.month_number || 1;
+                  if (!grouped[m]) grouped[m] = { month_number: m, total_dividend: 0 };
+                  grouped[m].total_dividend += (d.dividend_amount || 0);
+                });
+                return Object.values(grouped);
+              }
               return memoryStore.dividends.map(d => {
-                const sch = memoryStore.chit_schemes.find(s => s.id === d.scheme_id) || {};
-                const mbr = memoryStore.members.find(m => m.id === d.member_id) || {};
-                const auc = memoryStore.auctions.find(a => a.id === d.auction_id) || {};
+                const sch = memoryStore.chit_schemes.find(s => s && s.id === d.scheme_id) || {};
+                const mbr = memoryStore.members.find(m => m && m.id === d.member_id) || {};
+                const auc = memoryStore.auctions.find(a => a && a.id === d.auction_id) || {};
                 return {
                   ...d,
                   scheme_name: sch.scheme_name,

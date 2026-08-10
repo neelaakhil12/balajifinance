@@ -8,31 +8,31 @@ const { maskAadhaar } = require('../utils/financials');
 router.get('/dashboard', authenticateToken, (req, res) => {
   try {
     // 1. Summary Cards
-    const totalMembers = db.prepare("SELECT COUNT(*) as cnt FROM members WHERE chit_status != 'Deactivated'").get().cnt;
-    const activeChitSchemes = db.prepare("SELECT COUNT(*) as cnt FROM chit_schemes WHERE status = 'Active'").get().cnt;
-    const completedChits = db.prepare("SELECT COUNT(*) as cnt FROM chit_schemes WHERE status = 'Completed'").get().cnt;
+    const totalMembers = (db.prepare("SELECT COUNT(*) as cnt FROM members WHERE chit_status != 'Deactivated'").get() || {}).cnt || 0;
+    const activeChitSchemes = (db.prepare("SELECT COUNT(*) as cnt FROM chit_schemes WHERE status = 'Active'").get() || {}).cnt || 0;
+    const completedChits = (db.prepare("SELECT COUNT(*) as cnt FROM chit_schemes WHERE status = 'Completed'").get() || {}).cnt || 0;
     
-    const totalChitValueRow = db.prepare("SELECT SUM(total_chit_value) as total FROM chit_schemes WHERE status = 'Active'").get();
+    const totalChitValueRow = db.prepare("SELECT SUM(total_chit_value) as total FROM chit_schemes WHERE status = 'Active'").get() || {};
     const totalChitValue = totalChitValueRow.total || 0;
 
-    const collectionRow = db.prepare("SELECT SUM(amount_paid) as total FROM monthly_payments").get();
+    const collectionRow = db.prepare("SELECT SUM(amount_paid) as total FROM monthly_payments").get() || {};
     const currentMonthCollection = collectionRow.total || 0;
 
-    const dividendRow = db.prepare("SELECT SUM(dividend_amount) as total FROM dividends").get();
+    const dividendRow = db.prepare("SELECT SUM(dividend_amount) as total FROM dividends").get() || {};
     const currentMonthDividend = dividendRow.total || 0;
 
-    const pendingRow = db.prepare("SELECT SUM(net_amount_due - amount_paid) as total FROM monthly_payments WHERE status IN ('Pending', 'Partially Paid', 'Overdue')").get();
+    const pendingRow = db.prepare("SELECT SUM(net_amount_due - amount_paid) as total FROM monthly_payments WHERE status IN ('Pending', 'Partially Paid', 'Overdue')").get() || {};
     const pendingPayments = pendingRow.total || 0;
 
     // 2. Recent Members
-    const recentMembers = db.prepare("SELECT * FROM members ORDER BY id DESC LIMIT 5").all().map(m => ({
+    const recentMembers = (db.prepare("SELECT * FROM members ORDER BY id DESC LIMIT 5").all() || []).map(m => ({
       ...m,
       masked_aadhaar: maskAadhaar(m.aadhaar_no)
     }));
 
     // 3. Active Chit Schemes
-    const activeSchemes = db.prepare("SELECT * FROM chit_schemes WHERE status = 'Active' ORDER BY id DESC LIMIT 5").all().map(sch => {
-      const enrolledCount = db.prepare('SELECT COUNT(*) as cnt FROM chit_enrollments WHERE scheme_id = ?').get(sch.id).cnt;
+    const activeSchemes = (db.prepare("SELECT * FROM chit_schemes WHERE status = 'Active' ORDER BY id DESC LIMIT 5").all() || []).map(sch => {
+      const enrolledCount = (db.prepare('SELECT COUNT(*) as cnt FROM chit_enrollments WHERE scheme_id = ?').get(sch.id) || {}).cnt || 0;
       return { ...sch, enrolled_members_count: enrolledCount };
     });
 
@@ -43,10 +43,10 @@ router.get('/dashboard', authenticateToken, (req, res) => {
       JOIN chit_schemes cs ON a.scheme_id = cs.id
       JOIN members m ON a.winning_member_id = m.id
       ORDER BY a.id DESC LIMIT 5
-    `).all();
+    `).all() || [];
 
     // 5. Recent Activity (Audit logs)
-    const recentActivity = db.prepare("SELECT * FROM audit_logs ORDER BY id DESC LIMIT 6").all();
+    const recentActivity = db.prepare("SELECT * FROM audit_logs ORDER BY id DESC LIMIT 6").all() || [];
 
     // 6. Chart Datasets
     // Monthly collections breakdown (Grouped by month_number)
@@ -55,7 +55,7 @@ router.get('/dashboard', authenticateToken, (req, res) => {
       FROM monthly_payments
       GROUP BY month_number
       ORDER BY month_number ASC
-    `).all();
+    `).all() || [];
 
     // Monthly dividends breakdown
     const dividendsChart = db.prepare(`
@@ -63,13 +63,13 @@ router.get('/dashboard', authenticateToken, (req, res) => {
       FROM dividends
       GROUP BY month_number
       ORDER BY month_number ASC
-    `).all();
+    `).all() || [];
 
     // Active vs Completed Chits
     const chitsStatusChart = [
       { name: 'Active Schemes', value: activeChitSchemes },
       { name: 'Completed Schemes', value: completedChits },
-      { name: 'Upcoming Schemes', value: db.prepare("SELECT COUNT(*) as cnt FROM chit_schemes WHERE status = 'Upcoming'").get().cnt }
+      { name: 'Upcoming Schemes', value: (db.prepare("SELECT COUNT(*) as cnt FROM chit_schemes WHERE status = 'Upcoming'").get() || {}).cnt || 0 }
     ];
 
     return res.json({
