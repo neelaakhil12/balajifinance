@@ -532,7 +532,6 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
   };
 
   seedMemoryDB(db);
-}
 
 function seedMemoryDB(database) {
   try {
