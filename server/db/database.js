@@ -212,11 +212,16 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
             if (cleanSql.includes('SELECT id FROM members WHERE aadhaar_no = ?')) {
               return memoryStore.members.find(m => m && m.aadhaar_no === String(params[0]));
             }
+            if (cleanSql.includes('SELECT id FROM members WHERE member_code = ?')) {
+              return memoryStore.members.find(m => m && m.member_code && String(m.member_code).trim().toLowerCase() === String(params[0]).trim().toLowerCase());
+            }
           } catch (e) {
             console.error('JS Engine GET error:', e);
           }
-          // Default fallback object for get queries to avoid null reference errors
-          return { cnt: 0, count: 0, total: 0, max_id: 0 };
+          if (cleanSql.includes('COUNT') || cleanSql.includes('MAX') || cleanSql.includes('SUM')) {
+            return { cnt: 0, count: 0, total: 0, max_id: 0 };
+          }
+          return undefined;
         },
         all: (...params) => {
           try {
