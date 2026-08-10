@@ -201,6 +201,7 @@ export default function MembersPage() {
                 <th className="py-3.5 px-4">Aadhaar (Masked)</th>
                 <th className="py-3.5 px-4">KYC</th>
                 <th className="py-3.5 px-4">Chit Status</th>
+                <th className="py-3.5 px-4">Enrollments</th>
                 <th className="py-3.5 px-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -208,7 +209,7 @@ export default function MembersPage() {
             <tbody className="divide-y divide-slate-100 text-xs">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-500">
+                  <td colSpan={9} className="py-8 text-center text-slate-500">
                     <div className="flex flex-col items-center gap-2">
                       <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                       <span>Loading member directory...</span>
@@ -217,7 +218,7 @@ export default function MembersPage() {
                 </tr>
               ) : members.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-8 text-center text-slate-500">
+                  <td colSpan={9} className="py-8 text-center text-slate-500">
                     No members found matching search criteria.
                   </td>
                 </tr>
@@ -250,6 +251,15 @@ export default function MembersPage() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        mbr.chit_status === 'Active' || !mbr.chit_status
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-slate-100 text-slate-700 border border-slate-300'
+                      }`}>
+                        {mbr.chit_status || 'Active'}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4">
                       <button
                         onClick={() => handleViewMemberSchemes(mbr)}
                         className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition"
@@ -263,11 +273,10 @@ export default function MembersPage() {
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => handleViewMemberSchemes(mbr)}
-                          className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs"
-                          title="View Participated Schemes"
+                          className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition"
+                          title="View Enrolled Schemes & Ticket Details"
                         >
-                          <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>My Schemes</span>
+                          <Eye className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => navigate(`/members/${mbr.id}`)}
