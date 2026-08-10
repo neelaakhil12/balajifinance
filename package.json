@@ -4,8 +4,8 @@
   "description": "Dynamic Chit Fund & Savings Management Application for Balaji Savings & Finance",
   "private": true,
   "scripts": {
-    "dev": "npm --prefix client run dev",
-    "server": "npm --prefix server start",
+    "dev": "npx -y concurrently \"npm run server\" \"npm --prefix client run dev\"",
+    "server": "cd server && node index.js",
     "build": "cd client && npm install && npm run build",
     "start": "cd server && node index.js"
   },
