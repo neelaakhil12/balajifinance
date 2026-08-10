@@ -44,8 +44,8 @@ export default function LoginPage() {
   };
 
   const fillDemoCredentials = () => {
-    setEmail('admin@balajichit.com');
-    setPassword('admin123');
+    setEmail(import.meta.env.VITE_ADMIN_EMAIL || 'admin@balajichit.com');
+    setPassword(import.meta.env.VITE_ADMIN_PASSWORD || 'admin123');
     setError('');
   };
 

@@ -11,11 +11,14 @@ const supabase = require('./supabase');
 isNative = false;
 console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB (Localhost & Vercel synchronized).');
 
-  const defaultPasswordHash = bcrypt.hashSync('admin123', 10);
+  const adminEmail = (process.env.ADMIN_EMAIL || 'admin@balajichit.com').trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+  const defaultPasswordHash = bcrypt.hashSync(adminPassword, 10);
+
   const defaultAdminUser = {
     id: 1,
     name: 'Admin Staff',
-    email: 'admin@balajichit.com',
+    email: adminEmail,
     password_hash: defaultPasswordHash,
     role: 'Admin',
     created_at: new Date().toISOString()
@@ -70,7 +73,7 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
       if (users && Array.isArray(users) && users.length > 0) {
         memoryStore.users = users;
       }
-      if (!memoryStore.users.some(u => u && u.email && u.email.toLowerCase() === 'admin@balajichit.com')) {
+      if (!memoryStore.users.some(u => u && u.email && u.email.toLowerCase() === adminEmail)) {
         memoryStore.users.push(defaultAdminUser);
       }
 

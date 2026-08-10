@@ -190,8 +190,8 @@ END $$;
 
 -- Seed Admin User (Password: admin123)
 INSERT INTO users (name, email, password_hash, role)
-VALUES ('Admin Staff', 'admin@balajichit.com', '$2a$10$wN1QyZtP8W0cZg1OqT6cEuJ.4b.Pq1OqT6cEuJ.4b.Pq1OqT6cEuJ', 'admin')
-ON CONFLICT (email) DO NOTHING;
+VALUES ('Admin Staff', 'admin@balajichit.com', '$2b$10$ZotvDiPG2u2nY3Gb.tIhy.izBiYmuPeTONyB3MACFiu7lfbExblt2', 'admin')
+ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 -- Seed Sample Members
 INSERT INTO members (member_code, name, email, contact_no_1, contact_no_2, aadhaar_no, kyc_status, chit_status)
