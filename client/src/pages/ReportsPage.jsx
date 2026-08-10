@@ -64,62 +64,204 @@ export default function ReportsPage() {
 
   // Export to Excel/CSV
   const handleExportExcel = () => {
-    if (reportData.length === 0) return;
-    const worksheet = XLSX.utils.json_to_sheet(reportData);
+    if (!reportData || reportData.length === 0) {
+      setToast({ type: 'error', message: 'No data available to export.' });
+      return;
+    }
+
+    let cleanData = [];
+
+    if (activeReport === 'member') {
+      cleanData = reportData.map(m => ({
+        'Member Code': m.member_code || '',
+        'Member Name': m.name || '',
+        'Email Address': m.email || '',
+        'Phone Number': m.contact_no_1 || '',
+        'Aadhaar Number': m.masked_aadhaar || m.aadhaar_no || '',
+        'KYC Status': m.kyc_status || 'Verified',
+        'Chit Status': m.chit_status || 'Active'
+      }));
+    } else if (activeReport === 'chit') {
+      cleanData = reportData.map(c => ({
+        'Scheme Code': c.scheme_code || '',
+        'Scheme Name': c.scheme_name || '',
+        'Total Chit Value (₹)': Number(c.total_chit_value || 0),
+        'Duration (Months)': Number(c.duration_months || 0),
+        'Total Members': Number(c.number_of_members || 0),
+        'Enrolled Members': Number(c.enrolled_members || 0),
+        'Monthly Contribution (₹)': Number(c.monthly_contribution || 0),
+        'Foreman Comm (%)': Number(c.foreman_commission_percent || 5),
+        'Start Date': c.start_date ? c.start_date.split('T')[0] : '',
+        'End Date': c.end_date ? c.end_date.split('T')[0] : '',
+        'Status': c.status || 'Active'
+      }));
+    } else if (activeReport === 'collection') {
+      cleanData = reportData.map(p => ({
+        'Scheme Name': p.scheme_name || '',
+        'Month': `Month ${p.month_number || 1}`,
+        'Member Code': p.member_code || '',
+        'Member Name': p.member_name || '',
+        'Net Due (₹)': Number(p.net_amount_due || 0),
+        'Amount Paid (₹)': Number(p.amount_paid || 0),
+        'Payment Date': p.payment_date ? formatDate(p.payment_date) : 'Pending',
+        'Payment Mode': p.payment_mode || 'N/A',
+        'Reference / UTR': p.reference_no || '',
+        'Status': p.status || 'Pending'
+      }));
+    } else if (activeReport === 'auction') {
+      cleanData = reportData.map(a => ({
+        'Scheme Name': a.scheme_name || '',
+        'Auction Month': `Month ${a.month_number || 1}`,
+        'Winner Name': a.winner_name || '',
+        'Winning Discount (₹)': Number(a.winning_bid_discount || 0),
+        'Foreman Comm (₹)': Number(a.foreman_commission || 0),
+        'Winner Payout (₹)': Number(a.winner_payout || 0),
+        'Dividend / Member (₹)': Number(a.dividend_per_member || 0),
+        'Payout Mode': a.payout_mode || 'Bank Transfer',
+        'Payout Ref No': a.payout_ref_no || '',
+        'Auction Date': a.auction_date ? formatDate(a.auction_date) : ''
+      }));
+    } else if (activeReport === 'dividend') {
+      cleanData = reportData.map(d => ({
+        'Scheme Name': d.scheme_name || '',
+        'Month': `Month ${d.month_number || 1}`,
+        'Member Code': d.member_code || '',
+        'Member Name': d.member_name || '',
+        'Ticket No': d.ticket_number || 1,
+        'Dividend Amount (₹)': Number(d.dividend_amount || 0),
+        'Date': d.created_at ? formatDate(d.created_at) : ''
+      }));
+    } else if (activeReport === 'pending') {
+      cleanData = reportData.map(p => ({
+        'Scheme Name': p.scheme_name || '',
+        'Month': `Month ${p.month_number || 1}`,
+        'Member Code': p.member_code || '',
+        'Member Name': p.member_name || '',
+        'Phone Number': p.contact_no_1 || '',
+        'Net Amount Due (₹)': Number(p.net_amount_due || 0),
+        'Amount Paid (₹)': Number(p.amount_paid || 0),
+        'Pending Balance (₹)': Number(p.pending_balance || 0),
+        'Status': p.status || 'Pending'
+      }));
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(cleanData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Financial Report');
+    XLSX.utils.book_append_sheet(workbook, worksheet, `${activeReport.toUpperCase()} Report`);
     XLSX.writeFile(workbook, `Balaji_ChitFund_${activeReport}_Report_${Date.now()}.xlsx`);
     setToast({ type: 'success', message: 'Report exported to Excel successfully.' });
   };
 
   // Export to PDF using jsPDF
   const handleExportPDF = () => {
-    if (reportData.length === 0) return;
+    if (!reportData || reportData.length === 0) {
+      setToast({ type: 'error', message: 'No data available to export.' });
+      return;
+    }
 
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: 'landscape' });
     doc.setFontSize(16);
-    doc.text('BALAJI SAVINGS & FINANCE', 14, 15);
+    doc.text('BALAJI SAVINGS & FINANCE - VEERAVASARAM', 14, 15);
     doc.setFontSize(10);
-    doc.text(`Financial Report: ${activeReport.toUpperCase()} REPORT`, 14, 22);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 27);
+    doc.text(`Official Report Statement: ${activeReport.toUpperCase()} REPORT`, 14, 22);
+    doc.text(`Generated Date: ${new Date().toLocaleDateString('en-IN')}`, 14, 27);
 
     let headers = [];
     let rows = [];
 
     if (activeReport === 'member') {
-      headers = [['Code', 'Name', 'Email', 'Phone', 'Aadhaar', 'KYC', 'Status']];
-      rows = reportData.map((m) => [m.member_code, m.name, m.email, m.contact_no_1, m.masked_aadhaar, m.kyc_status, m.chit_status]);
+      headers = [['Code', 'Member Name', 'Email', 'Phone', 'Aadhaar No', 'KYC Status', 'Chit Status']];
+      rows = reportData.map((m) => [
+        m.member_code || '', m.name || '', m.email || '', m.contact_no_1 || '',
+        m.masked_aadhaar || m.aadhaar_no || '', m.kyc_status || 'Verified', m.chit_status || 'Active'
+      ]);
     } else if (activeReport === 'chit') {
-      headers = [['Code', 'Name', 'Chit Value', 'Duration', 'Members', 'Contribution', 'Status']];
-      rows = reportData.map((c) => [c.scheme_code, c.scheme_name, `INR ${c.total_chit_value}`, `${c.duration_months}m`, c.number_of_members, `INR ${c.monthly_contribution}`, c.status]);
+      headers = [['Code', 'Scheme Name', 'Total Value', 'Duration', 'Members', 'Contribution', 'Foreman %', 'Status']];
+      rows = reportData.map((c) => [
+        c.scheme_code || '', c.scheme_name || '', formatCurrency(c.total_chit_value), `${c.duration_months} Months`,
+        `${c.enrolled_members || 0} / ${c.number_of_members || 0}`, formatCurrency(c.monthly_contribution),
+        `${c.foreman_commission_percent || 5}%`, c.status || 'Active'
+      ]);
     } else if (activeReport === 'collection') {
-      headers = [['Scheme', 'Month', 'Member', 'Due', 'Paid', 'Date', 'Status']];
-      rows = reportData.map((p) => [p.scheme_name, `M${p.month_number}`, p.member_name, `INR ${p.net_amount_due}`, `INR ${p.amount_paid}`, p.payment_date || 'N/A', p.status]);
+      headers = [['Scheme Name', 'Month', 'Member Name', 'Net Due', 'Amount Paid', 'Date', 'Status']];
+      rows = reportData.map((p) => [
+        p.scheme_name || '', `Month ${p.month_number}`, p.member_name || '',
+        formatCurrency(p.net_amount_due), formatCurrency(p.amount_paid),
+        p.payment_date ? formatDate(p.payment_date) : 'Pending', p.status || 'Pending'
+      ]);
     } else if (activeReport === 'auction') {
-      headers = [['Scheme', 'Month', 'Winner', 'Discount', 'Winner Payout', 'Div/Member']];
-      rows = reportData.map((a) => [a.scheme_name, `M${a.month_number}`, a.winner_name, `INR ${a.winning_bid_discount}`, `INR ${a.winner_payout}`, `INR ${a.dividend_per_member}`]);
+      headers = [['Scheme Name', 'Month', 'Winner Name', 'Winning Discount', 'Foreman Comm.', 'Winner Payout', 'Dividend/Member']];
+      rows = reportData.map((a) => [
+        a.scheme_name || '', `Month ${a.month_number}`, a.winner_name || '',
+        formatCurrency(a.winning_bid_discount), formatCurrency(a.foreman_commission),
+        formatCurrency(a.winner_payout), formatCurrency(a.dividend_per_member)
+      ]);
+    } else if (activeReport === 'dividend') {
+      headers = [['Scheme Name', 'Month', 'Member Code', 'Member Name', 'Ticket #', 'Dividend Earned']];
+      rows = reportData.map((d) => [
+        d.scheme_name || '', `Month ${d.month_number}`, d.member_code || '',
+        d.member_name || '', d.ticket_number || 1, formatCurrency(d.dividend_amount)
+      ]);
     } else if (activeReport === 'pending') {
-      headers = [['Scheme', 'Month', 'Member', 'Phone', 'Pending Due']];
-      rows = reportData.map((p) => [p.scheme_name, `M${p.month_number}`, p.member_name, p.contact_no_1, `INR ${p.pending_balance}`]);
-    } else {
-      headers = [['ID', 'Name', 'Amount', 'Date']];
-      rows = reportData.map((r) => [r.id || 1, r.name || 'N/A', r.amount || 0, r.created_at || 'N/A']);
+      headers = [['Scheme Name', 'Month', 'Member Name', 'Phone', 'Net Due', 'Paid', 'Pending Balance']];
+      rows = reportData.map((p) => [
+        p.scheme_name || '', `Month ${p.month_number}`, p.member_name || '',
+        p.contact_no_1 || '', formatCurrency(p.net_amount_due), formatCurrency(p.amount_paid),
+        formatCurrency(p.pending_balance)
+      ]);
     }
 
     doc.autoTable({
       head: headers,
       body: rows,
       startY: 32,
-      styles: { fontSize: 8 }
+      styles: { fontSize: 8, cellPadding: 3 },
+      headStyles: { fillColor: [30, 58, 138], textColor: [255, 255, 255], fontStyle: 'bold' }
     });
 
-    doc.save(`Balaji_ChitFund_${activeReport}_Report.pdf`);
-    setToast({ type: 'success', message: 'Report exported to PDF.' });
+    doc.save(`Balaji_ChitFund_${activeReport}_Report_${Date.now()}.pdf`);
+    setToast({ type: 'success', message: 'Report exported to PDF successfully.' });
   };
 
   // Print Report View
   const handlePrint = () => {
-    window.print();
+    const printElement = document.getElementById('report-printable-table');
+    if (!printElement) {
+      window.print();
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=950,height=700');
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Balaji Savings & Finance - ${activeReport.toUpperCase()} Report</title>
+          <style>
+            body { font-family: sans-serif; padding: 20px; color: #000; }
+            h2 { font-size: 18px; margin-bottom: 4px; text-transform: uppercase; color: #1e3a8a; }
+            p { font-size: 12px; color: #475569; margin-bottom: 16px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+            th { background: #1e293b; color: #fff; text-align: left; padding: 8px; border: 1px solid #cbd5e1; }
+            td { padding: 8px; border: 1px solid #cbd5e1; }
+            tr:nth-child(even) { background: #f8fafc; }
+            button, .no-print { display: none !important; }
+            @page { size: landscape; margin: 10mm; }
+          </style>
+        </head>
+        <body onload="setTimeout(function(){ window.print(); window.close(); }, 300);">
+          <h2>BALAJI SAVINGS & FINANCE - VEERAVASARAM</h2>
+          <p>Official Financial Statement &bull; <strong>${activeReport.toUpperCase()} REPORT</strong> &bull; Date: ${new Date().toLocaleDateString('en-IN')}</p>
+          ${printElement.outerHTML}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   return (
@@ -210,7 +352,7 @@ export default function ReportsPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
+          <table className="w-full text-left border-collapse text-xs" id="report-printable-table">
             <thead>
               <tr className="bg-slate-900 text-white font-semibold uppercase">
                 {activeReport === 'member' && (
