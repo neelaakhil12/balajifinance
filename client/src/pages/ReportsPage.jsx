@@ -284,25 +284,11 @@ export default function ReportsPage() {
         {/* Export Buttons */}
         <div className="flex items-center gap-2">
           <button
-            onClick={handleExportPDF}
-            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Export PDF</span>
-          </button>
-          <button
             onClick={handleExportExcel}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-4 h-4" />
             <span>Export Excel</span>
-          </button>
-          <button
-            onClick={handlePrint}
-            className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Print Report</span>
           </button>
         </div>
       </div>
