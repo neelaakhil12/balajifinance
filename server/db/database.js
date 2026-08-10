@@ -254,7 +254,37 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
         all: (...params) => {
           try {
             if (cleanSql.includes('FROM members')) {
-              return [...memoryStore.members];
+              let filtered = [...memoryStore.members];
+              let pIdx = 0;
+
+              if (cleanSql.includes('LIKE ?')) {
+                const sVal = String(params[pIdx] || '').replace(/%/g, '').toLowerCase();
+                pIdx += 4;
+                if (sVal) {
+                  filtered = filtered.filter(m => m && (
+                    (m.name && m.name.toLowerCase().includes(sVal)) ||
+                    (m.email && m.email.toLowerCase().includes(sVal)) ||
+                    (m.contact_no_1 && m.contact_no_1.includes(sVal)) ||
+                    (m.member_code && m.member_code.toLowerCase().includes(sVal))
+                  ));
+                }
+              }
+
+              if (cleanSql.includes('kyc_status = ?')) {
+                const kVal = params[pIdx++];
+                if (kVal != null && kVal !== '') {
+                  filtered = filtered.filter(m => m && String(m.kyc_status).toLowerCase() === String(kVal).toLowerCase());
+                }
+              }
+
+              if (cleanSql.includes('chit_status = ?')) {
+                const cVal = params[pIdx++];
+                if (cVal != null && cVal !== '') {
+                  filtered = filtered.filter(m => m && String(m.chit_status).toLowerCase() === String(cVal).toLowerCase());
+                }
+              }
+
+              return filtered;
             }
             if (cleanSql.includes('FROM chit_schemes')) {
               return [...memoryStore.chit_schemes];
@@ -401,13 +431,30 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
             }
             if (cleanSql.includes('FROM chit_enrollments')) {
               let filtered = [...memoryStore.chit_enrollments];
-              if (params.length > 0 && params[0] != null && params[0] !== '') {
-                filtered = filtered.filter(ce => ce && (ce.scheme_id === Number(params[0]) || String(ce.scheme_id) === String(params[0])));
+              let pIdx = 0;
+              if (cleanSql.includes('member_id = ?') || cleanSql.includes('ce.member_id = ?')) {
+                const mbrVal = params[pIdx++];
+                if (mbrVal != null && mbrVal !== '') {
+                  filtered = filtered.filter(ce => ce && (ce.member_id === Number(mbrVal) || String(ce.member_id) === String(mbrVal)));
+                }
+              }
+              if (cleanSql.includes('scheme_id = ?') || cleanSql.includes('ce.scheme_id = ?')) {
+                const schVal = params[pIdx++];
+                if (schVal != null && schVal !== '') {
+                  filtered = filtered.filter(ce => ce && (ce.scheme_id === Number(schVal) || String(schVal) === String(ce.scheme_id)));
+                }
               }
               return filtered.map(ce => {
+                const sch = memoryStore.chit_schemes.find(s => s && (s.id === ce.scheme_id || String(s.id) === String(ce.scheme_id))) || {};
                 const m = memoryStore.members.find(mbr => mbr && (mbr.id === ce.member_id || String(mbr.id) === String(ce.member_id))) || {};
                 return {
+                  ...ce,
                   enrollment_id: ce.id,
+                  scheme_id: sch.id,
+                  scheme_code: sch.scheme_code,
+                  scheme_name: sch.scheme_name,
+                  total_chit_value: sch.total_chit_value,
+                  monthly_contribution: sch.monthly_contribution,
                   ticket_number: ce.ticket_number,
                   enrolled_at: ce.enrolled_at,
                   member_id: m.id,
