@@ -11,8 +11,18 @@ const supabase = require('./supabase');
 isNative = false;
 console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB (Localhost & Vercel synchronized).');
 
+  const defaultPasswordHash = bcrypt.hashSync('admin123', 10);
+  const defaultAdminUser = {
+    id: 1,
+    name: 'Admin Staff',
+    email: 'admin@balajichit.com',
+    password_hash: defaultPasswordHash,
+    role: 'Admin',
+    created_at: new Date().toISOString()
+  };
+
   const memoryStore = {
-    users: [],
+    users: [defaultAdminUser],
     members: [],
     kyc_documents: [],
     chit_schemes: [],
@@ -24,7 +34,7 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
   };
 
   let autoId = {
-    users: 1, members: 1, kyc_documents: 1, chit_schemes: 1,
+    users: 2, members: 1, kyc_documents: 1, chit_schemes: 1,
     chit_enrollments: 1, auctions: 1, monthly_payments: 1, dividends: 1, audit_logs: 1
   };
 
@@ -32,17 +42,7 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
 
   async function syncFromSupabase() {
     try {
-      const [
-        { data: users },
-        { data: members },
-        { data: kycDocs },
-        { data: schemes },
-        { data: enrollments },
-        { data: auctions },
-        { data: payments },
-        { data: dividends },
-        { data: auditLogs }
-      ] = await Promise.all([
+      const results = await Promise.all([
         supabase.from('users').select('*'),
         supabase.from('members').select('*').order('id', { ascending: false }),
         supabase.from('kyc_documents').select('*'),
@@ -52,17 +52,36 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
         supabase.from('monthly_payments').select('*').order('id', { ascending: false }),
         supabase.from('dividends').select('*').order('id', { ascending: false }),
         supabase.from('audit_logs').select('*').order('id', { ascending: false })
-      ]);
+      ]).catch(e => {
+        console.warn('Supabase fetch error:', e.message);
+        return [];
+      });
 
-      if (users && users.length > 0) memoryStore.users = users;
-      if (members && members.length > 0) memoryStore.members = members;
-      if (kycDocs && kycDocs.length > 0) memoryStore.kyc_documents = kycDocs;
-      if (schemes && schemes.length > 0) memoryStore.chit_schemes = schemes;
-      if (enrollments && enrollments.length > 0) memoryStore.chit_enrollments = enrollments;
-      if (auctions && auctions.length > 0) memoryStore.auctions = auctions;
-      if (payments && payments.length > 0) memoryStore.monthly_payments = payments;
-      if (dividends && dividends.length > 0) memoryStore.dividends = dividends;
-      if (auditLogs && auditLogs.length > 0) memoryStore.audit_logs = auditLogs;
+      const users = results[0] && results[0].data;
+      const members = results[1] && results[1].data;
+      const kycDocs = results[2] && results[2].data;
+      const schemes = results[3] && results[3].data;
+      const enrollments = results[4] && results[4].data;
+      const auctions = results[5] && results[5].data;
+      const payments = results[6] && results[6].data;
+      const dividends = results[7] && results[7].data;
+      const auditLogs = results[8] && results[8].data;
+
+      if (users && Array.isArray(users) && users.length > 0) {
+        memoryStore.users = users;
+      }
+      if (!memoryStore.users.some(u => u && u.email && u.email.toLowerCase() === 'admin@balajichit.com')) {
+        memoryStore.users.push(defaultAdminUser);
+      }
+
+      if (members && Array.isArray(members) && members.length > 0) memoryStore.members = members;
+      if (kycDocs && Array.isArray(kycDocs) && kycDocs.length > 0) memoryStore.kyc_documents = kycDocs;
+      if (schemes && Array.isArray(schemes) && schemes.length > 0) memoryStore.chit_schemes = schemes;
+      if (enrollments && Array.isArray(enrollments) && enrollments.length > 0) memoryStore.chit_enrollments = enrollments;
+      if (auctions && Array.isArray(auctions) && auctions.length > 0) memoryStore.auctions = auctions;
+      if (payments && Array.isArray(payments) && payments.length > 0) memoryStore.monthly_payments = payments;
+      if (dividends && Array.isArray(dividends) && dividends.length > 0) memoryStore.dividends = dividends;
+      if (auditLogs && Array.isArray(auditLogs) && auditLogs.length > 0) memoryStore.audit_logs = auditLogs;
 
       // Update max autoId counters
       const tables = ['users', 'members', 'kyc_documents', 'chit_schemes', 'chit_enrollments', 'auctions', 'monthly_payments', 'dividends', 'audit_logs'];
@@ -73,7 +92,6 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
         }
       });
       lastSyncTime = Date.now();
-      console.log('Successfully synced data from Supabase Cloud DB!');
     } catch (e) {
       console.warn('Supabase sync warning:', e.message);
     }
