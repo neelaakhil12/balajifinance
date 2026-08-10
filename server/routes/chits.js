@@ -227,13 +227,27 @@ router.post('/:id/enroll', authenticateToken, (req, res) => {
       return res.status(400).json({ success: false, message: 'This chit scheme has reached maximum member capacity.' });
     }
 
-    // Determine ticket number
-    let ticketNo = ticket_number ? parseInt(ticket_number, 10) : (currentEnrolled + 1);
+    // Check if this member is already enrolled in this scheme
+    const alreadyEnrolled = db.prepare('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND member_id = ?').get(realSchemeId, member_id);
+    if (alreadyEnrolled) {
+      return res.status(400).json({ success: false, message: 'This member is already enrolled in this chit scheme.' });
+    }
 
-    // Verify ticket number uniqueness
-    const ticketTaken = db.prepare('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND ticket_number = ?').get(realSchemeId, ticketNo);
-    if (ticketTaken) {
-      return res.status(400).json({ success: false, message: `Ticket number #${ticketNo} is already assigned to another member.` });
+    // Determine ticket number - if auto-assign, find next AVAILABLE ticket
+    let ticketNo;
+    if (ticket_number) {
+      ticketNo = parseInt(ticket_number, 10);
+      // Only error if user manually specified a taken ticket
+      const ticketTaken = db.prepare('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND ticket_number = ?').get(realSchemeId, ticketNo);
+      if (ticketTaken) {
+        return res.status(400).json({ success: false, message: `Ticket number #${ticketNo} is already assigned to another member.` });
+      }
+    } else {
+      // Auto-assign: find first available ticket number
+      ticketNo = 1;
+      while (db.prepare('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND ticket_number = ?').get(realSchemeId, ticketNo)) {
+        ticketNo++;
+      }
     }
 
     const now = new Date().toISOString();
