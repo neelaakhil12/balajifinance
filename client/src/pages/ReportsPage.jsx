@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API from '../services/api';
 import Toast from '../components/common/Toast';
+import Modal from '../components/common/Modal';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import {
   FileSpreadsheet,
@@ -13,7 +14,9 @@ import {
   CreditCard,
   Gavel,
   PieChart,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  Image
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -24,6 +27,7 @@ export default function ReportsPage() {
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ type: '', message: '' });
+  const [proofModalData, setProofModalData] = useState(null);
 
   // Filters
   const [schemeFilter, setSchemeFilter] = useState('');
@@ -242,6 +246,7 @@ export default function ReportsPage() {
                     <th className="p-3">Amount Paid</th>
                     <th className="p-3">Date</th>
                     <th className="p-3">Status</th>
+                    <th className="p-3 text-right">Proof</th>
                   </>
                 )}
 
@@ -254,6 +259,7 @@ export default function ReportsPage() {
                     <th className="p-3">Foreman Comm.</th>
                     <th className="p-3">Winner Payout</th>
                     <th className="p-3">Dividend / Member</th>
+                    <th className="p-3 text-right">Proof</th>
                   </>
                 )}
 
@@ -329,6 +335,20 @@ export default function ReportsPage() {
                         <td className="p-3 font-bold text-emerald-700">{formatCurrency(row.amount_paid)}</td>
                         <td className="p-3 text-slate-600">{row.payment_date ? formatDate(row.payment_date) : 'Pending'}</td>
                         <td className="p-3 font-bold">{row.status}</td>
+                        <td className="p-3 text-right">
+                          {row.proof_image_data ? (
+                            <button
+                              onClick={() => setProofModalData({ ...row, title: `Collection Payment Proof: ${row.member_name} (Month ${row.month_number})`, image: row.proof_image_data, mode: row.payment_mode, ref: row.reference_no, bank: row.bank_name, cheque: row.cheque_no, cheque_date: row.cheque_date })}
+                              className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition"
+                              title="View Uploaded Payment Transaction Screenshot"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-blue-600" />
+                              <span>View Proof</span>
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">No Proof</span>
+                          )}
+                        </td>
                       </>
                     )}
 
@@ -341,6 +361,20 @@ export default function ReportsPage() {
                         <td className="p-3 text-slate-600">{formatCurrency(row.foreman_commission)}</td>
                         <td className="p-3 font-extrabold text-emerald-700">{formatCurrency(row.winner_payout)}</td>
                         <td className="p-3 font-bold text-blue-700">{formatCurrency(row.dividend_per_member)}</td>
+                        <td className="p-3 text-right">
+                          {row.payout_proof_image ? (
+                            <button
+                              onClick={() => setProofModalData({ ...row, title: `Auction Winner Payout Proof: ${row.winner_name} (Month ${row.month_number})`, image: row.payout_proof_image, mode: row.payout_mode, ref: row.payout_ref_no, bank: row.payout_bank_name, cheque: row.payout_cheque_no, cheque_date: row.payout_cheque_date })}
+                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold inline-flex items-center gap-1.5 transition"
+                              title="View Uploaded Auction Payout Screenshot"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>View Proof</span>
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic">No Proof</span>
+                          )}
+                        </td>
                       </>
                     )}
 
@@ -371,6 +405,59 @@ export default function ReportsPage() {
           </table>
         </div>
       </div>
+
+      {/* Transaction Screenshot Proof Modal */}
+      {proofModalData && (
+        <Modal
+          isOpen={!!proofModalData}
+          onClose={() => setProofModalData(null)}
+          title={proofModalData.title || 'Transaction Screenshot & Details'}
+        >
+          <div className="space-y-4 text-xs">
+            <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 font-medium text-slate-700">
+              <div className="flex justify-between">
+                <span>Payment Method:</span>
+                <strong className="text-slate-900 uppercase font-bold">{proofModalData.mode || 'Bank Transfer'}</strong>
+              </div>
+              {proofModalData.ref && (
+                <div className="flex justify-between">
+                  <span>Transaction UTR / Ref #:</span>
+                  <strong className="font-mono text-blue-700">{proofModalData.ref}</strong>
+                </div>
+              )}
+              {proofModalData.bank && (
+                <div className="flex justify-between">
+                  <span>Bank Name:</span>
+                  <strong className="text-slate-900">{proofModalData.bank}</strong>
+                </div>
+              )}
+              {proofModalData.cheque && (
+                <div className="flex justify-between">
+                  <span>Cheque Number:</span>
+                  <strong className="font-mono text-slate-900">{proofModalData.cheque} {proofModalData.cheque_date ? `(${proofModalData.cheque_date})` : ''}</strong>
+                </div>
+              )}
+            </div>
+
+            {proofModalData.image ? (
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-slate-500 block uppercase tracking-wider">Uploaded Transaction Screenshot / Photo:</span>
+                <div className="p-2 bg-slate-900 rounded-2xl flex justify-center items-center overflow-hidden border border-slate-800">
+                  <img
+                    src={proofModalData.image}
+                    alt="Transaction Proof"
+                    className="max-h-[420px] w-auto object-contain rounded-xl shadow-lg"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="p-6 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">
+                No screenshot file was attached to this transaction.
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
 
     </div>
   );
