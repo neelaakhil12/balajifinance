@@ -222,7 +222,7 @@ router.post('/:id/enroll', authenticateToken, (req, res) => {
     const realSchemeId = scheme.id;
 
     // Check existing enrollments count
-    const currentEnrolled = db.prepare('SELECT COUNT(*) as cnt FROM chit_enrollments WHERE scheme_id = ?').get(schemeId).cnt;
+    const currentEnrolled = (db.prepare('SELECT COUNT(*) as cnt FROM chit_enrollments WHERE scheme_id = ?').get(realSchemeId) || {}).cnt || 0;
     if (currentEnrolled >= scheme.number_of_members) {
       return res.status(400).json({ success: false, message: 'This chit scheme has reached maximum member capacity.' });
     }
@@ -231,7 +231,7 @@ router.post('/:id/enroll', authenticateToken, (req, res) => {
     let ticketNo = ticket_number ? parseInt(ticket_number, 10) : (currentEnrolled + 1);
 
     // Verify ticket number uniqueness
-    const ticketTaken = db.prepare('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND ticket_number = ?').get(schemeId, ticketNo);
+    const ticketTaken = db.prepare('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND ticket_number = ?').get(realSchemeId, ticketNo);
     if (ticketTaken) {
       return res.status(400).json({ success: false, message: `Ticket number #${ticketNo} is already assigned to another member.` });
     }
@@ -241,7 +241,7 @@ router.post('/:id/enroll', authenticateToken, (req, res) => {
     db.prepare(`
       INSERT INTO chit_enrollments (scheme_id, member_id, ticket_number, enrolled_at, status)
       VALUES (?, ?, ?, ?, 'Active')
-    `).run(schemeId, member_id, ticketNo, now);
+    `).run(realSchemeId, member_id, ticketNo, now);
 
     logAuditAction(req.user.id, req.user.name, 'ENROLL_MEMBER', 'Chit Schemes', `Enrolled member ID ${member_id} to scheme ${scheme.scheme_code} on ticket #${ticketNo}.`);
 
