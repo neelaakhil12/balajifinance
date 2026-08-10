@@ -384,7 +384,7 @@ router.put('/:id', authenticateToken, (req, res) => {
   }
 });
 
-// DELETE /api/members/:id (Deactivate or delete member)
+// DELETE /api/members/:id (Permanently delete member record and all associated data)
 router.delete('/:id', authenticateToken, (req, res) => {
   try {
     const memberId = req.params.id;
@@ -394,15 +394,21 @@ router.delete('/:id', authenticateToken, (req, res) => {
       return res.status(404).json({ success: false, message: 'Member not found.' });
     }
 
-    // Soft delete/deactivate or full delete
-    db.prepare("UPDATE members SET chit_status = 'Deactivated', kyc_status = 'Inactive' WHERE id = ?").run(memberId);
+    // Delete associated records from kyc_documents, chit_enrollments, monthly_payments, dividends
+    db.prepare('DELETE FROM kyc_documents WHERE member_id = ?').run(memberId);
+    db.prepare('DELETE FROM chit_enrollments WHERE member_id = ?').run(memberId);
+    db.prepare('DELETE FROM monthly_payments WHERE member_id = ?').run(memberId);
+    db.prepare('DELETE FROM dividends WHERE member_id = ?').run(memberId);
 
-    logAuditAction(req.user.id, req.user.name, 'DEACTIVATE_MEMBER', 'Members', `Deactivated member ID ${memberId} (${member.name}).`);
+    // Delete member record permanently
+    db.prepare('DELETE FROM members WHERE id = ?').run(memberId);
 
-    return res.json({ success: true, message: 'Member deactivated successfully.' });
+    logAuditAction(req.user.id, req.user.name, 'DELETE_MEMBER', 'Members', `Permanently deleted member ${member.member_code} (${member.name}).`);
+
+    return res.json({ success: true, message: `Member ${member.name} permanently deleted successfully.` });
   } catch (error) {
     console.error('Delete member error:', error);
-    return res.status(500).json({ success: false, message: 'Failed to deactivate member.' });
+    return res.status(500).json({ success: false, message: 'Failed to delete member record.' });
   }
 });
 

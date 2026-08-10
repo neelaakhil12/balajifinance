@@ -478,9 +478,40 @@ if (!isNative) {
               }
               return { changes: 1 };
             }
+            if (cleanSql.includes('DELETE FROM kyc_documents WHERE member_id = ?')) {
+              const mId = Number(params[0]);
+              memoryStore.kyc_documents = memoryStore.kyc_documents.filter(d => d && d.member_id !== mId);
+              supabase.from('kyc_documents').delete().eq('member_id', mId).then(r => { if(r.error) console.error('Supabase kyc delete:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('DELETE FROM chit_enrollments WHERE member_id = ?')) {
+              const mId = Number(params[0]);
+              memoryStore.chit_enrollments = memoryStore.chit_enrollments.filter(e => e && e.member_id !== mId);
+              supabase.from('chit_enrollments').delete().eq('member_id', mId).then(r => { if(r.error) console.error('Supabase enrollment delete:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('DELETE FROM monthly_payments WHERE member_id = ?')) {
+              const mId = Number(params[0]);
+              memoryStore.monthly_payments = memoryStore.monthly_payments.filter(p => p && p.member_id !== mId);
+              supabase.from('monthly_payments').delete().eq('member_id', mId).then(r => { if(r.error) console.error('Supabase payment delete:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('DELETE FROM dividends WHERE member_id = ?')) {
+              const mId = Number(params[0]);
+              memoryStore.dividends = memoryStore.dividends.filter(d => d && d.member_id !== mId);
+              supabase.from('dividends').delete().eq('member_id', mId).then(r => { if(r.error) console.error('Supabase dividend delete:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('DELETE FROM members WHERE id = ?')) {
+              const mId = Number(params[0]);
+              memoryStore.members = memoryStore.members.filter(m => m && m.id !== mId);
+              supabase.from('members').delete().eq('id', mId).then(r => { if(r.error) console.error('Supabase member delete:', r.error); });
+              return { changes: 1 };
+            }
             if (cleanSql.includes('DELETE FROM chit_enrollments')) {
               const enrollId = params[0];
-              memoryStore.chit_enrollments = memoryStore.chit_enrollments.filter(e => e.id !== Number(enrollId));
+              memoryStore.chit_enrollments = memoryStore.chit_enrollments.filter(e => e && e.id !== Number(enrollId));
+              supabase.from('chit_enrollments').delete().eq('id', Number(enrollId)).then(r => { if(r.error) console.error('Supabase enrollment delete:', r.error); });
               return { changes: 1 };
             }
           } catch (e) {

@@ -90,12 +90,12 @@ export default function MembersPage() {
     try {
       const res = await API.delete(`/members/${deleteModalMember.id}`);
       if (res.data.success) {
-        setToast({ type: 'success', message: `Member ${deleteModalMember.name} deactivated successfully.` });
+        setToast({ type: 'success', message: res.data.message || `Member ${deleteModalMember.name} permanently deleted successfully.` });
         setDeleteModalMember(null);
         fetchMembers(pagination.page);
       }
     } catch (err) {
-      setToast({ type: 'error', message: 'Failed to deactivate member.' });
+      setToast({ type: 'error', message: 'Failed to delete member record.' });
     }
   };
 
@@ -388,18 +388,18 @@ export default function MembersPage() {
         </Modal>
       )}
 
-      {/* Delete/Deactivate Confirmation Modal */}
+      {/* Delete Confirmation Modal */}
       {deleteModalMember && (
         <Modal
           isOpen={!!deleteModalMember}
           onClose={() => setDeleteModalMember(null)}
-          title="Confirm Member Deactivation"
+          title="Confirm Member Deletion"
         >
           <div className="space-y-4 text-xs">
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-              <p className="text-amber-900 font-medium">
-                Are you sure you want to deactivate member <strong>{deleteModalMember.name}</strong> ({deleteModalMember.member_code})?
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+              <p className="text-rose-900 font-medium">
+                Are you sure you want to permanently delete member <strong>{deleteModalMember.name}</strong> ({deleteModalMember.member_code})? This will remove all their records from the database.
               </p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
@@ -411,9 +411,9 @@ export default function MembersPage() {
               </button>
               <button
                 onClick={handleDeactivate}
-                className="px-4 py-2 bg-rose-600 text-white rounded-lg font-bold"
+                className="px-4 py-2 bg-rose-600 text-white rounded-lg font-bold hover:bg-rose-700 transition"
               >
-                Deactivate Member
+                Delete Member
               </button>
             </div>
           </div>
