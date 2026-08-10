@@ -8,22 +8,34 @@ const { authenticateToken } = require('../middleware/auth');
 const { maskAadhaar } = require('../utils/financials');
 const { logAuditAction } = require('../utils/auditLogger');
 
-// Multer Storage setup for KYC docs
-const uploadDir = path.join(__dirname, '..', 'uploads', 'kyc');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Force memory storage on Vercel/serverless environments to avoid read-only file system errors
+const isServerless = Boolean(
+  process.env.VERCEL ||
+  process.env.AWS_LAMBDA_FUNCTION_NAME ||
+  process.env.VERCEL_ENV
+);
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+let storage;
+if (isServerless) {
+  storage = multer.memoryStorage();
+} else {
+  try {
+    const uploadDir = path.join(__dirname, '..', 'uploads', 'kyc');
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    storage = multer.diskStorage({
+      destination: (req, file, cb) => cb(null, uploadDir),
+      filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+      }
+    });
+  } catch (err) {
+    storage = multer.memoryStorage();
   }
-});
+}
 
 const fileFilter = (req, file, cb) => {
   const allowedMimeTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
@@ -69,12 +81,12 @@ router.get('/', authenticateToken, (req, res) => {
 
     // Count query
     const countQuery = query.replace('SELECT *', 'SELECT COUNT(*) as total');
-    const totalCount = db.prepare(countQuery).get(...params).total;
+    const totalCount = (db.prepare(countQuery).get(...params) || {}).total || 0;
 
     query += ' ORDER BY id DESC LIMIT ? OFFSET ?';
     params.push(limitNum, offset);
 
-    const members = db.prepare(query).all(...params);
+    const members = db.prepare(query).all(...params) || [];
 
     // Process masked aadhaar & scheme enrollments
     const processedMembers = members.map(m => {
@@ -83,7 +95,7 @@ router.get('/', authenticateToken, (req, res) => {
         FROM chit_enrollments ce
         JOIN chit_schemes cs ON ce.scheme_id = cs.id
         WHERE ce.member_id = ?
-      `).all(m.id);
+      `).all(m.id) || [];
 
       const uniqueSchemes = new Set(enrollments.map(e => e.scheme_id));
 
@@ -103,7 +115,7 @@ router.get('/', authenticateToken, (req, res) => {
         total: totalCount,
         page: pageNum,
         limit: limitNum,
-        totalPages: Math.ceil(totalCount / limitNum)
+        totalPages: Math.ceil(totalCount / limitNum) || 1
       }
     });
   } catch (error) {
@@ -160,7 +172,7 @@ router.post(
       const now = new Date().toISOString();
 
       // Generate Member Code: BSF-MBR-100X
-      const maxId = db.prepare('SELECT MAX(id) as max_id FROM members').get().max_id || 0;
+      const maxId = (db.prepare('SELECT MAX(id) as max_id FROM members').get() || {}).max_id || 0;
       const memberCode = `BSF-MBR-${1001 + maxId}`;
 
       // Insert Member
@@ -180,33 +192,51 @@ router.post(
 
       const memberId = result.lastInsertRowid;
 
+      // Helper function to extract file data safely across diskStorage & memoryStorage
+      const getFileData = (file) => {
+        if (!file) return { filename: '', path: '', size: 0, mimetype: '' };
+        const ext = path.extname(file.originalname || '') || '.pdf';
+        const filename = file.filename || `${file.fieldname}-${Date.now()}-${Math.round(Math.random()*1E9)}${ext}`;
+        let filePath = file.path;
+        if (!filePath && file.buffer) {
+          filePath = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
+        }
+        return {
+          filename,
+          originalname: file.originalname || 'document.pdf',
+          path: filePath || filename,
+          mimetype: file.mimetype || 'application/pdf',
+          size: file.size || (file.buffer ? file.buffer.length : 0)
+        };
+      };
+
       // Save KYC document records
       const insertDocStmt = db.prepare(`
         INSERT INTO kyc_documents (member_id, document_type, file_name, original_name, file_path, mime_type, file_size, uploaded_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
-      const aadhaarFile = req.files.aadhaar_document[0];
+      const aadhaarData = getFileData(req.files.aadhaar_document[0]);
       insertDocStmt.run(
         memberId,
         'aadhaar',
-        aadhaarFile.filename,
-        aadhaarFile.originalname,
-        aadhaarFile.path,
-        aadhaarFile.mimetype,
-        aadhaarFile.size,
+        aadhaarData.filename,
+        aadhaarData.originalname,
+        aadhaarData.path,
+        aadhaarData.mimetype,
+        aadhaarData.size,
         now
       );
 
-      const panFile = req.files.pan_document[0];
+      const panData = getFileData(req.files.pan_document[0]);
       insertDocStmt.run(
         memberId,
         'pan',
-        panFile.filename,
-        panFile.originalname,
-        panFile.path,
-        panFile.mimetype,
-        panFile.size,
+        panData.filename,
+        panData.originalname,
+        panData.path,
+        panData.mimetype,
+        panData.size,
         now
       );
 
