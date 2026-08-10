@@ -20,12 +20,10 @@ export default function Sidebar({ mobileOpen, closeMobileMenu }) {
     { name: 'Add Member', path: '/add-member', icon: UserPlus },
     { name: 'Members', path: '/members', icon: Users },
     { name: 'Chit Schemes', path: '/schemes', icon: Layers },
-    { name: 'How It Works', path: '/how-it-works', icon: HelpCircle },
     { name: 'Auction', path: '/auctions', icon: Gavel },
     { name: 'Monthly Payments', path: '/payments', icon: CreditCard },
     { name: 'Dividends', path: '/dividends', icon: PieChart },
     { name: 'Reports', path: '/reports', icon: FileSpreadsheet },
-    { name: 'Settings', path: '/settings', icon: Settings },
   ];
 
   const sidebarContent = (

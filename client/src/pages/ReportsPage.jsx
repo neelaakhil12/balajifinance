@@ -337,7 +337,7 @@ export default function ReportsPage() {
                         <td className="p-3 font-bold text-slate-900">{row.scheme_name}</td>
                         <td className="p-3 font-bold text-blue-600">Month {row.month_number}</td>
                         <td className="p-3 font-bold text-slate-800">{row.winner_name}</td>
-                        <td className="p-3 font-semibold text-amber-600">-{formatCurrency(row.winning_bid_discount)}</td>
+                        <td className="p-3 font-semibold text-amber-600">{formatCurrency(row.winning_bid_discount)}</td>
                         <td className="p-3 text-slate-600">{formatCurrency(row.foreman_commission)}</td>
                         <td className="p-3 font-extrabold text-emerald-700">{formatCurrency(row.winner_payout)}</td>
                         <td className="p-3 font-bold text-blue-700">{formatCurrency(row.dividend_per_member)}</td>

@@ -307,7 +307,14 @@ export default function MonthlyPaymentsPage() {
                     <tr key={p.id} className="hover:bg-slate-50">
                       <td className="p-3.5">
                         <span className="font-bold text-slate-900 block">{p.scheme_name}</span>
-                        <span className="font-bold text-blue-600 font-mono">Month {p.month_number}</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="font-bold text-blue-600 font-mono">Month {p.month_number}</span>
+                          {p.ticket_number && (
+                            <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 font-extrabold rounded text-[10px] border border-blue-200">
+                              Ticket #{p.ticket_number}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3.5">
                         <span className="font-bold text-slate-900 block">{p.member_name}</span>

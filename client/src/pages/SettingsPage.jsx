@@ -1,30 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import API from '../services/api';
-import { formatDate } from '../utils/formatters';
-import { Settings, ShieldCheck, Activity, User, Building2, Lock, CheckCircle2 } from 'lucide-react';
+import React from 'react';
+import { Settings, ShieldCheck, User } from 'lucide-react';
 
 export default function SettingsPage() {
   const user = { name: 'Admin Staff', username: 'admin', role: 'Administrator' };
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchAuditLogs();
-  }, []);
-
-  const fetchAuditLogs = async () => {
-    try {
-      setLoading(true);
-      const res = await API.get('/audit?limit=50');
-      if (res.data.success) {
-        setLogs(res.data.logs);
-      }
-    } catch (err) {
-      console.error('Fetch audit logs error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="space-y-6 pb-12 max-w-5xl mx-auto">
@@ -86,53 +64,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-      </div>
-
-      {/* Security Audit Trail Log */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-blue-600" />
-            <h3 className="text-sm font-bold text-slate-900 uppercase">System Audit Trail Log</h3>
-          </div>
-          <span className="text-xs text-slate-500 font-mono">50 Most Recent Events</span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-900 text-white font-semibold uppercase">
-                <th className="p-3.5">Timestamp</th>
-                <th className="p-3.5">User</th>
-                <th className="p-3.5">Action</th>
-                <th className="p-3.5">Target</th>
-                <th className="p-3.5">Details</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-slate-500">
-                    Loading audit trail...
-                  </td>
-                </tr>
-              ) : logs.map((log) => (
-                <tr key={log.id} className="hover:bg-slate-50">
-                  <td className="p-3.5 text-slate-500 font-mono">{formatDate(log.timestamp)}</td>
-                  <td className="p-3.5 font-bold text-slate-900">{log.user_name}</td>
-                  <td className="p-3.5">
-                    <span className="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-blue-100 text-blue-800 border border-blue-200">
-                      {log.action}
-                    </span>
-                  </td>
-                  <td className="p-3.5 font-semibold text-slate-700">{log.target}</td>
-                  <td className="p-3.5 text-slate-600">{log.details}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
 
     </div>

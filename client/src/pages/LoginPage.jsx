@@ -37,7 +37,8 @@ export default function LoginPage() {
       await login(email, password);
       navigate('/', { replace: true });
     } catch (err) {
-      setError(err.message || 'Invalid login credentials. Please try again.');
+      const msg = err.response?.data?.message || err.message || 'Invalid login credentials. Please try again.';
+      setError(msg);
     } finally {
       setLoading(false);
     }

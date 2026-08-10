@@ -8,7 +8,15 @@ const { logAuditAction } = require('../utils/auditLogger');
 // POST /api/auth/login
 router.post('/login', (req, res) => {
   try {
-    const { email, password } = req.body || {};
+    let body = req.body;
+    if (typeof body === 'string') {
+      try { body = JSON.parse(body); } catch (e) {}
+    }
+    if (Buffer.isBuffer(body)) {
+      try { body = JSON.parse(body.toString('utf8')); } catch (e) {}
+    }
+
+    const { email, password } = body || {};
 
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Email address and password are required.' });
@@ -17,7 +25,7 @@ router.post('/login', (req, res) => {
     const cleanEmail = String(email).trim().toLowerCase();
     const user = db.prepare('SELECT * FROM users WHERE email = ?').get(cleanEmail);
 
-    if (!user) {
+    if (!user || !user.password_hash) {
       return res.status(401).json({ success: false, message: 'Invalid email address or password.' });
     }
 

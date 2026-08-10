@@ -14,7 +14,6 @@ import {
   ArrowRight,
   Gavel,
   UserPlus,
-  Activity,
   CreditCard
 } from 'lucide-react';
 import {
@@ -305,30 +304,7 @@ export default function DashboardPage() {
 
       </div>
 
-      {/* 4. Recent Activity Log */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-blue-600" />
-            <h3 className="text-sm font-bold text-slate-900">Recent System Audit Trail</h3>
-          </div>
-          <span className="text-xs text-slate-400">Live security log</span>
-        </div>
 
-        <div className="space-y-3">
-          {recentActivity.map((log) => (
-            <div key={log.id} className="flex items-start justify-between text-xs p-2.5 rounded-lg bg-slate-50">
-              <div className="space-y-0.5">
-                <span className="font-semibold text-slate-800">{log.user_name}</span>
-                <span className="text-slate-400 mx-1.5">•</span>
-                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded font-mono font-semibold">{log.action}</span>
-                <p className="text-slate-600 mt-0.5">{log.details}</p>
-              </div>
-              <span className="text-slate-400 shrink-0 text-[11px]">{formatDate(log.timestamp)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
 
     </div>
   );

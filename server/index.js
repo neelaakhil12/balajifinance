@@ -2,16 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
-
-const authRoutes = require('./routes/auth');
-const memberRoutes = require('./routes/members');
-const chitRoutes = require('./routes/chits');
-const auctionRoutes = require('./routes/auctions');
-const paymentRoutes = require('./routes/payments');
-const dividendRoutes = require('./routes/dividends');
-const reportRoutes = require('./routes/reports');
-const auditRoutes = require('./routes/audit');
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -39,15 +29,23 @@ app.use((req, res, next) => {
   });
 });
 
+function getRoute(routeName) {
+  const routePath = require.resolve(`./routes/${routeName}`);
+  if (process.env.NODE_ENV !== 'production') {
+    delete require.cache[routePath];
+  }
+  return require(`./routes/${routeName}`);
+}
+
 // Register API Endpoints (Supports both /api/* and /* paths on Vercel)
-app.use(['/api/auth', '/auth'], authRoutes);
-app.use(['/api/members', '/members'], memberRoutes);
-app.use(['/api/chits', '/chits'], chitRoutes);
-app.use(['/api/auctions', '/auctions'], auctionRoutes);
-app.use(['/api/payments', '/payments'], paymentRoutes);
-app.use(['/api/dividends', '/dividends'], dividendRoutes);
-app.use(['/api/reports', '/reports'], reportRoutes);
-app.use(['/api/audit', '/audit'], auditRoutes);
+app.use(['/api/auth', '/auth'], (req, res, next) => getRoute('auth')(req, res, next));
+app.use(['/api/members', '/members'], (req, res, next) => getRoute('members')(req, res, next));
+app.use(['/api/chits', '/chits'], (req, res, next) => getRoute('chits')(req, res, next));
+app.use(['/api/auctions', '/auctions'], (req, res, next) => getRoute('auctions')(req, res, next));
+app.use(['/api/payments', '/payments'], (req, res, next) => getRoute('payments')(req, res, next));
+app.use(['/api/dividends', '/dividends'], (req, res, next) => getRoute('dividends')(req, res, next));
+app.use(['/api/reports', '/reports'], (req, res, next) => getRoute('reports')(req, res, next));
+app.use(['/api/audit', '/audit'], (req, res, next) => getRoute('audit')(req, res, next));
 
 // Health check endpoint
 app.get(['/api/health', '/health'], (req, res) => {

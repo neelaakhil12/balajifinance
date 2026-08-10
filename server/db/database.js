@@ -73,8 +73,16 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
       if (users && Array.isArray(users) && users.length > 0) {
         memoryStore.users = users;
       }
-      if (!memoryStore.users.some(u => u && u.email && u.email.toLowerCase() === adminEmail)) {
+      const existingAdmin = memoryStore.users.find(u => u && u.email && u.email.toLowerCase() === adminEmail);
+      if (!existingAdmin) {
         memoryStore.users.push(defaultAdminUser);
+      } else if (!existingAdmin.password_hash || !bcrypt.compareSync(adminPassword, existingAdmin.password_hash)) {
+        existingAdmin.password_hash = defaultPasswordHash;
+        if (existingAdmin.id) {
+          supabase.from('users').update({ password_hash: defaultPasswordHash }).eq('id', existingAdmin.id).then(r => {
+            if (r.error) console.error('Supabase admin hash repair error:', r.error);
+          });
+        }
       }
 
       if (members && Array.isArray(members)) memoryStore.members = members;
@@ -144,15 +152,53 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
             if (cleanSql.includes('SELECT * FROM chit_schemes WHERE scheme_code = ?')) {
               return memoryStore.chit_schemes.find(s => s && s.scheme_code && String(s.scheme_code).toLowerCase() === String(params[0]).toLowerCase());
             }
-            if (cleanSql.includes('FROM chit_enrollments')) {
+            if (cleanSql.includes('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND member_id = ?')) {
+              return memoryStore.chit_enrollments.find(e => e && e.scheme_id === Number(params[0]) && e.member_id === Number(params[1]));
+            }
+            if (cleanSql.includes('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND ticket_number = ?')) {
+              const schParam = params[0];
+              const tckParam = Number(params[1]);
+              return memoryStore.chit_enrollments.find(e => e && (e.scheme_id === Number(schParam) || String(e.scheme_id) === String(schParam)) && Number(e.ticket_number) === tckParam);
+            }
+            if (cleanSql.includes('FROM chit_enrollments') && (cleanSql.includes('COUNT') || cleanSql.includes('cnt'))) {
               const schId = params[0] ? Number(params[0]) : null;
               const cnt = schId ? memoryStore.chit_enrollments.filter(e => e && e.scheme_id === schId).length : memoryStore.chit_enrollments.length;
               return { cnt, total: cnt, count: cnt };
             }
-            if (cleanSql.includes('FROM auctions')) {
+            if (cleanSql.includes('FROM auctions') && (cleanSql.includes('COUNT') || cleanSql.includes('cnt'))) {
               const schId = params[0] ? Number(params[0]) : null;
               const cnt = schId ? memoryStore.auctions.filter(a => a && a.scheme_id === schId).length : memoryStore.auctions.length;
               return { cnt, total: cnt, count: cnt };
+            }
+            if (cleanSql.includes('SELECT id FROM auctions WHERE scheme_id = ? AND month_number = ?')) {
+              const schId = params[0];
+              return memoryStore.auctions.find(a => a && (a.scheme_id === Number(schId) || String(a.scheme_id) === String(schId)) && a.month_number === Number(params[1]));
+            }
+            if (cleanSql.includes('winning_ticket_number') && cleanSql.includes('winning_member_id') && cleanSql.includes('auctions')) {
+              const schId = params[0]; const ticketNo = params[1]; const memberId = params[2];
+              return memoryStore.auctions.find(a => a && (a.scheme_id === Number(schId) || String(a.scheme_id) === String(schId)) && Number(a.winning_ticket_number) === Number(ticketNo) && Number(a.winning_member_id) === Number(memberId));
+            }
+            if (cleanSql.includes('SELECT * FROM auctions WHERE id = ?') || cleanSql.includes('FROM auctions WHERE id = ?')) {
+              return memoryStore.auctions.find(a => a && (a.id === Number(params[0]) || String(a.id) === String(params[0])));
+            }
+            if (cleanSql.includes('SELECT * FROM auctions WHERE scheme_id = ? AND month_number = ?')) {
+              const schId = params[0];
+              const mNum = Number(params[1]);
+              return memoryStore.auctions.find(a => a && (a.scheme_id === Number(schId) || String(a.scheme_id) === String(schId)) && a.month_number === mNum);
+            }
+            if (cleanSql.includes('SELECT id, month_number FROM auctions WHERE scheme_id = ? AND winning_member_id = ?')) {
+              const schId = params[0];
+              return memoryStore.auctions.find(a => a && (a.scheme_id === Number(schId) || String(a.scheme_id) === String(schId)) && a.winning_member_id === Number(params[1]));
+            }
+            if (cleanSql.includes('SELECT * FROM monthly_payments WHERE id = ?')) {
+              return memoryStore.monthly_payments.find(p => p && p.id === Number(params[0]));
+            }
+            if (cleanSql.includes('SELECT * FROM monthly_payments WHERE scheme_id = ? AND member_id = ? AND month_number = ?')) {
+              return memoryStore.monthly_payments.find(p => p && p.scheme_id === Number(params[0]) && p.member_id === Number(params[1]) && p.month_number === Number(params[2]));
+            }
+            if (cleanSql.includes('FROM members') && (cleanSql.includes('COUNT') || cleanSql.includes('cnt'))) {
+              const cnt = memoryStore.members.filter(m => m && m.chit_status !== 'Deactivated').length;
+              return { cnt, count: cnt };
             }
             if (cleanSql.includes('FROM chit_schemes') && (cleanSql.includes('COUNT') || cleanSql.includes('SUM'))) {
               let targetStatus = params[0];
@@ -166,59 +212,26 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
                 : memoryStore.chit_schemes.length;
               const totalVal = memoryStore.chit_schemes
                 .filter(s => s && (targetStatus ? s.status === targetStatus : true))
-                .reduce((acc, s) => acc + (s.total_chit_value || 0), 0);
+                .reduce((acc, s) => acc + (Number(s.total_chit_value) || 0), 0);
               return { cnt, count: cnt, total: totalVal };
             }
-            if (cleanSql.includes('FROM members') && cleanSql.includes('COUNT')) {
-              const cnt = memoryStore.members.filter(m => m && m.chit_status !== 'Deactivated').length;
-              return { cnt, count: cnt };
-            }
             if (cleanSql.includes('SUM(total_chit_value)')) {
-              const total = memoryStore.chit_schemes.filter(s => s && s.status === 'Active').reduce((acc, s) => acc + (s.total_chit_value || 0), 0);
+              const total = memoryStore.chit_schemes.filter(s => s && s.status === 'Active').reduce((acc, s) => acc + (Number(s.total_chit_value) || 0), 0);
               return { total };
             }
             if (cleanSql.includes('SUM(amount_paid)')) {
-              const total = memoryStore.monthly_payments.reduce((acc, p) => acc + (p.amount_paid || 0), 0);
+              const total = memoryStore.monthly_payments.reduce((acc, p) => acc + (Number(p.amount_paid) || 0), 0);
               return { total };
             }
             if (cleanSql.includes('SUM(dividend_amount)')) {
-              const total = memoryStore.dividends.reduce((acc, d) => acc + (d.dividend_amount || 0), 0);
+              const total = memoryStore.dividends.reduce((acc, d) => acc + (Number(d.dividend_amount) || 0), 0);
               return { total };
             }
             if (cleanSql.includes('SUM(net_amount_due - amount_paid)')) {
               const total = memoryStore.monthly_payments
                 .filter(p => p && ['Pending', 'Partially Paid', 'Overdue'].includes(p.status))
-                .reduce((acc, p) => acc + ((p.net_amount_due || 0) - (p.amount_paid || 0)), 0);
+                .reduce((acc, p) => acc + ((Number(p.net_amount_due) || 0) - (Number(p.amount_paid) || 0)), 0);
               return { total };
-            }
-            if (cleanSql.includes('SELECT * FROM kyc_documents WHERE id = ? AND member_id = ?')) {
-              return memoryStore.kyc_documents.find(d => d && d.id === Number(params[1]) && d.member_id === Number(params[0]));
-            }
-            if (cleanSql.includes('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND member_id = ?')) {
-              return memoryStore.chit_enrollments.find(e => e && e.scheme_id === Number(params[0]) && e.member_id === Number(params[1]));
-            }
-            if (cleanSql.includes('SELECT id FROM chit_enrollments WHERE scheme_id = ? AND ticket_number = ?')) {
-              const schParam = params[0];
-              const tckParam = Number(params[1]);
-              return memoryStore.chit_enrollments.find(e => e && (e.scheme_id === Number(schParam) || String(e.scheme_id) === String(schParam)) && Number(e.ticket_number) === tckParam);
-            }
-            if (cleanSql.includes('SELECT id FROM auctions WHERE scheme_id = ? AND month_number = ?')) {
-              const schId = params[0];
-              return memoryStore.auctions.find(a => a && (a.scheme_id === Number(schId) || String(a.scheme_id) === String(schId)) && a.month_number === Number(params[1]));
-            }
-            if (cleanSql.includes('winning_ticket_number') && cleanSql.includes('winning_member_id') && cleanSql.includes('auctions')) {
-              const schId = params[0]; const ticketNo = params[1]; const memberId = params[2];
-              return memoryStore.auctions.find(a => a && (a.scheme_id === Number(schId) || String(a.scheme_id) === String(schId)) && Number(a.winning_ticket_number) === Number(ticketNo) && Number(a.winning_member_id) === Number(memberId));
-            }
-            if (cleanSql.includes('SELECT id, month_number FROM auctions WHERE scheme_id = ? AND winning_member_id = ?')) {
-              const schId = params[0];
-              return memoryStore.auctions.find(a => a && (a.scheme_id === Number(schId) || String(a.scheme_id) === String(schId)) && a.winning_member_id === Number(params[1]));
-            }
-            if (cleanSql.includes('SELECT * FROM monthly_payments WHERE id = ?')) {
-              return memoryStore.monthly_payments.find(p => p && p.id === Number(params[0]));
-            }
-            if (cleanSql.includes('SELECT * FROM monthly_payments WHERE scheme_id = ? AND member_id = ? AND month_number = ?')) {
-              return memoryStore.monthly_payments.find(p => p && p.scheme_id === Number(params[0]) && p.member_id === Number(params[1]) && p.month_number === Number(params[2]));
             }
             if (cleanSql.includes('SELECT id FROM members WHERE email = ?')) {
               return memoryStore.members.find(m => m && m.email && m.email.toLowerCase() === String(params[0]).toLowerCase());
@@ -269,23 +282,56 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
                 memoryStore.monthly_payments.forEach(p => {
                   const m = p.month_number || 1;
                   if (!grouped[m]) grouped[m] = { month_number: m, collected: 0, target: 0 };
-                  grouped[m].collected += (p.amount_paid || 0);
-                  grouped[m].target += (p.net_amount_due || 0);
+                  grouped[m].collected += (Number(p.amount_paid) || 0);
+                  grouped[m].target += (Number(p.net_amount_due) || 0);
                 });
                 return Object.values(grouped);
               }
+
               let filtered = [...memoryStore.monthly_payments];
-              if (params.length >= 1 && params[0] != null) {
-                const schId = Number(params[0]);
-                filtered = filtered.filter(p => p && p.scheme_id === schId);
+
+              let pIdx = 0;
+              if (cleanSql.includes('mp.scheme_id = ?') || cleanSql.includes('scheme_id = ?')) {
+                const schVal = params[pIdx++];
+                if (schVal != null && schVal !== '') {
+                  filtered = filtered.filter(p => p && (p.scheme_id === Number(schVal) || String(p.scheme_id) === String(schVal)));
+                }
               }
-              if (params.length >= 2 && params[1] != null) {
-                const mbrId = Number(params[1]);
-                filtered = filtered.filter(p => p && p.member_id === mbrId);
+              if (cleanSql.includes('mp.month_number = ?') || cleanSql.includes('month_number = ?')) {
+                const mVal = params[pIdx++];
+                if (mVal != null && mVal !== '') {
+                  filtered = filtered.filter(p => p && Number(p.month_number) === Number(mVal));
+                }
               }
+              if (cleanSql.includes('mp.member_id = ?') || cleanSql.includes('member_id = ?')) {
+                const mbrVal = params[pIdx++];
+                if (mbrVal != null && mbrVal !== '') {
+                  filtered = filtered.filter(p => p && (p.member_id === Number(mbrVal) || String(p.member_id) === String(mbrVal)));
+                }
+              }
+              if (cleanSql.includes('mp.status = ?') || cleanSql.includes('status = ?')) {
+                const stVal = params[pIdx++];
+                if (stVal != null && stVal !== '') {
+                  filtered = filtered.filter(p => p && String(p.status).toLowerCase() === String(stVal).toLowerCase());
+                }
+              }
+              if (cleanSql.includes('LIKE ?')) {
+                const srchVal = String(params[pIdx] || '').replace(/%/g, '').toLowerCase();
+                if (srchVal) {
+                  filtered = filtered.filter(p => {
+                    const mbr = memoryStore.members.find(m => m && m.id === p.member_id) || {};
+                    return (
+                      (mbr.name && mbr.name.toLowerCase().includes(srchVal)) ||
+                      (mbr.member_code && mbr.member_code.toLowerCase().includes(srchVal)) ||
+                      (p.reference_no && p.reference_no.toLowerCase().includes(srchVal))
+                    );
+                  });
+                }
+              }
+
               return filtered.map(p => {
-                const sch = memoryStore.chit_schemes.find(s => s && s.id === p.scheme_id) || {};
-                const mbr = memoryStore.members.find(m => m && m.id === p.member_id) || {};
+                const sch = memoryStore.chit_schemes.find(s => s && (s.id === p.scheme_id || String(s.id) === String(p.scheme_id))) || {};
+                const mbr = memoryStore.members.find(m => m && (m.id === p.member_id || String(m.id) === String(p.member_id))) || {};
                 return {
                   ...p,
                   scheme_name: sch.scheme_name,
@@ -293,7 +339,7 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
                   member_name: mbr.name,
                   member_code: mbr.member_code,
                   contact_no_1: mbr.contact_no_1,
-                  pending_balance: (p.net_amount_due || 0) - (p.amount_paid || 0)
+                  pending_balance: (Number(p.net_amount_due) || 0) - (Number(p.amount_paid) || 0)
                 };
               });
             }
@@ -303,14 +349,37 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
                 memoryStore.dividends.forEach(d => {
                   const m = d.month_number || 1;
                   if (!grouped[m]) grouped[m] = { month_number: m, total_dividend: 0 };
-                  grouped[m].total_dividend += (d.dividend_amount || 0);
+                  grouped[m].total_dividend += (Number(d.dividend_amount) || 0);
                 });
                 return Object.values(grouped);
               }
-              return memoryStore.dividends.map(d => {
-                const sch = memoryStore.chit_schemes.find(s => s && s.id === d.scheme_id) || {};
-                const mbr = memoryStore.members.find(m => m && m.id === d.member_id) || {};
-                const auc = memoryStore.auctions.find(a => a && a.id === d.auction_id) || {};
+
+              let filtered = [...memoryStore.dividends];
+
+              let pIdx = 0;
+              if (cleanSql.includes('d.scheme_id = ?') || cleanSql.includes('scheme_id = ?')) {
+                const schVal = params[pIdx++];
+                if (schVal != null && schVal !== '') {
+                  filtered = filtered.filter(d => d && (d.scheme_id === Number(schVal) || String(d.scheme_id) === String(schVal)));
+                }
+              }
+              if (cleanSql.includes('d.member_id = ?') || cleanSql.includes('member_id = ?')) {
+                const mbrVal = params[pIdx++];
+                if (mbrVal != null && mbrVal !== '') {
+                  filtered = filtered.filter(d => d && (d.member_id === Number(mbrVal) || String(d.member_id) === String(mbrVal)));
+                }
+              }
+              if (cleanSql.includes('d.month_number = ?') || cleanSql.includes('month_number = ?')) {
+                const mVal = params[pIdx++];
+                if (mVal != null && mVal !== '') {
+                  filtered = filtered.filter(d => d && Number(d.month_number) === Number(mVal));
+                }
+              }
+
+              return filtered.map(d => {
+                const sch = memoryStore.chit_schemes.find(s => s && (s.id === d.scheme_id || String(s.id) === String(d.scheme_id))) || {};
+                const mbr = memoryStore.members.find(m => m && (m.id === d.member_id || String(m.id) === String(d.member_id))) || {};
+                const auc = memoryStore.auctions.find(a => a && (a.id === d.auction_id || String(a.id) === String(d.auction_id))) || {};
                 return {
                   ...d,
                   scheme_name: sch.scheme_name,
@@ -330,23 +399,25 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
               return memoryStore.kyc_documents.filter(doc => doc && doc.member_id === Number(params[0]));
             }
             if (cleanSql.includes('FROM chit_enrollments')) {
-              return memoryStore.chit_enrollments
-                .filter(ce => ce && ce.scheme_id === Number(params[0]))
-                .map(ce => {
-                  const m = memoryStore.members.find(mbr => mbr && mbr.id === ce.member_id) || {};
-                  return {
-                    enrollment_id: ce.id,
-                    ticket_number: ce.ticket_number,
-                    enrolled_at: ce.enrolled_at,
-                    member_id: m.id,
-                    member_code: m.member_code,
-                    name: m.name,
-                    email: m.email,
-                    contact_no_1: m.contact_no_1,
-                    aadhaar_no: m.aadhaar_no,
-                    kyc_status: m.kyc_status
-                  };
-                });
+              let filtered = [...memoryStore.chit_enrollments];
+              if (params.length > 0 && params[0] != null && params[0] !== '') {
+                filtered = filtered.filter(ce => ce && (ce.scheme_id === Number(params[0]) || String(ce.scheme_id) === String(params[0])));
+              }
+              return filtered.map(ce => {
+                const m = memoryStore.members.find(mbr => mbr && (mbr.id === ce.member_id || String(mbr.id) === String(ce.member_id))) || {};
+                return {
+                  enrollment_id: ce.id,
+                  ticket_number: ce.ticket_number,
+                  enrolled_at: ce.enrolled_at,
+                  member_id: m.id,
+                  member_code: m.member_code,
+                  name: m.name,
+                  email: m.email,
+                  contact_no_1: m.contact_no_1,
+                  aadhaar_no: m.aadhaar_no,
+                  kyc_status: m.kyc_status
+                };
+              });
             }
           } catch (e) {
             console.error('JS Engine ALL error:', e);
@@ -423,50 +494,105 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
               const id = autoId.auctions++;
               const aucObj = {
                 id, scheme_id: params[0], month_number: params[1], auction_date: params[2],
-                winning_member_id: params[3], winning_bid_discount: params[4], foreman_commission: params[5],
-                winner_payout: params[6], dividend_pool: params[7], dividend_per_member: params[8],
-                next_month_payable: params[9], notes: params[10], created_at: params[11]
+                winning_member_id: params[3], winning_ticket_number: params[4], winning_bid_discount: params[5],
+                foreman_commission: params[6], winner_payout: params[7], dividend_pool: params[8],
+                dividend_per_member: params[9], next_month_payable: params[10], notes: params[11], created_at: params[12]
               };
               memoryStore.auctions.unshift(aucObj);
               supabase.from('auctions').insert([{
                 scheme_id: params[0], month_number: params[1], auction_date: params[2],
-                winning_member_id: params[3], winning_bid_discount: params[4], foreman_commission: params[5],
-                winner_payout: params[6], dividend_pool: params[7], dividend_per_member: params[8],
-                next_month_payable: params[9], notes: params[10]
+                winning_member_id: params[3], winning_ticket_number: params[4], winning_bid_discount: params[5],
+                foreman_commission: params[6], winner_payout: params[7], dividend_pool: params[8],
+                dividend_per_member: params[9], next_month_payable: params[10], notes: params[11]
               }]).then(r => { if(r.error) console.error('Supabase auction insert:', r.error); });
               return { lastInsertRowid: id };
             }
             if (cleanSql.includes('INSERT INTO monthly_payments')) {
-              const existing = memoryStore.monthly_payments.find(p => p && p.scheme_id === Number(params[0]) && p.member_id === Number(params[1]) && p.month_number === Number(params[2]));
+              let schId, mbrId, tckNo, mNum, baseVal, divVal, netVal, amtPaid, stat, nts, crtAt;
+              if (params.length >= 9 && cleanSql.includes('ticket_number')) {
+                schId = Number(params[0]);
+                mbrId = Number(params[1]);
+                tckNo = Number(params[2]);
+                mNum = Number(params[3]);
+                baseVal = Number(params[4]);
+                divVal = Number(params[5]);
+                netVal = Number(params[6]);
+                if (cleanSql.includes("0, 'Pending'")) {
+                  amtPaid = 0;
+                  stat = 'Pending';
+                  nts = params[7] || '';
+                  crtAt = params[8] || new Date().toISOString();
+                } else {
+                  amtPaid = Number(params[7]) || 0;
+                  stat = params[8] || 'Pending';
+                  nts = params[9] || '';
+                  crtAt = params[10] || new Date().toISOString();
+                }
+              } else {
+                schId = Number(params[0]);
+                mbrId = Number(params[1]);
+                tckNo = 1;
+                mNum = Number(params[2]);
+                baseVal = Number(params[3]);
+                divVal = Number(params[4]);
+                netVal = Number(params[5]);
+                amtPaid = Number(params[6]) || 0;
+                stat = params[7] || 'Pending';
+                nts = params[8] || '';
+                crtAt = params[9] || new Date().toISOString();
+              }
+
+              const existing = memoryStore.monthly_payments.find(p => p && p.scheme_id === schId && p.member_id === mbrId && p.month_number === mNum && (p.ticket_number || 1) === tckNo);
               if (existing) {
-                existing.dividend_applied = params[4];
-                existing.net_amount_due = params[5];
+                existing.dividend_applied = divVal;
+                existing.net_amount_due = netVal;
+                existing.base_contribution = baseVal;
+                supabase.from('monthly_payments').update({ dividend_applied: divVal, net_amount_due: netVal, base_contribution: baseVal }).eq('id', existing.id).then(r => { if(r.error) console.error('Supabase payment update:', r.error); });
                 return { lastInsertRowid: existing.id };
               }
+
               const id = autoId.monthly_payments++;
               const pmtObj = {
-                id, scheme_id: params[0], member_id: params[1], month_number: params[2],
-                base_contribution: params[3], dividend_applied: params[4], net_amount_due: params[5],
-                amount_paid: params[6] || 0, status: params[7] || 'Pending', notes: params[8] || '', created_at: params[9]
+                id, scheme_id: schId, member_id: mbrId, ticket_number: tckNo, month_number: mNum,
+                base_contribution: baseVal, dividend_applied: divVal, net_amount_due: netVal,
+                amount_paid: amtPaid, status: stat, notes: nts, created_at: crtAt
               };
               memoryStore.monthly_payments.unshift(pmtObj);
               supabase.from('monthly_payments').insert([{
-                scheme_id: params[0], member_id: params[1], month_number: params[2],
-                base_contribution: params[3], dividend_applied: params[4], net_amount_due: params[5],
-                amount_paid: params[6] || 0, status: params[7] || 'Pending', notes: params[8] || ''
+                scheme_id: schId, member_id: mbrId, ticket_number: tckNo, month_number: mNum,
+                base_contribution: baseVal, dividend_applied: divVal, net_amount_due: netVal,
+                amount_paid: amtPaid, status: stat, notes: nts
               }]).then(r => { if(r.error) console.error('Supabase payment insert:', r.error); });
               return { lastInsertRowid: id };
             }
             if (cleanSql.includes('INSERT INTO dividends')) {
+              let aucId, schId, mbrId, tckNo, mNum, divAmt, crtAt;
+              if (params.length >= 6 && cleanSql.includes('ticket_number')) {
+                aucId = Number(params[0]);
+                schId = Number(params[1]);
+                mbrId = Number(params[2]);
+                tckNo = Number(params[3]);
+                mNum = Number(params[4]);
+                divAmt = Number(params[5]);
+                crtAt = params[6] || new Date().toISOString();
+              } else {
+                aucId = Number(params[0]);
+                schId = Number(params[1]);
+                mbrId = Number(params[2]);
+                tckNo = 1;
+                mNum = Number(params[3]);
+                divAmt = Number(params[4]);
+                crtAt = params[5] || new Date().toISOString();
+              }
               const id = autoId.dividends++;
               const divObj = {
-                id, auction_id: params[0], scheme_id: params[1], member_id: params[2],
-                month_number: params[3], dividend_amount: params[4], created_at: params[5]
+                id, auction_id: aucId, scheme_id: schId, member_id: mbrId, ticket_number: tckNo,
+                month_number: mNum, dividend_amount: divAmt, created_at: crtAt
               };
               memoryStore.dividends.unshift(divObj);
               supabase.from('dividends').insert([{
-                auction_id: params[0], scheme_id: params[1], member_id: params[2],
-                month_number: params[3], dividend_amount: params[4]
+                auction_id: aucId, scheme_id: schId, member_id: mbrId, ticket_number: tckNo,
+                month_number: mNum, dividend_amount: divAmt
               }]).then(r => { if(r.error) console.error('Supabase dividend insert:', r.error); });
               return { lastInsertRowid: id };
             }
@@ -479,20 +605,31 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
             }
             if (cleanSql.includes('UPDATE monthly_payments')) {
               const pId = params[params.length - 1];
-              const item = memoryStore.monthly_payments.find(p => p.id === Number(pId) || String(p.id) === String(pId));
+              const item = memoryStore.monthly_payments.find(p => p && (p.id === Number(pId) || String(p.id) === String(pId)));
               if (item) {
-                item.amount_paid = params[0];
-                item.payment_date = params[1];
-                item.payment_mode = params[2];
+                item.amount_paid = Number(params[0]) || 0;
+                item.payment_date = params[1] || new Date().toISOString().split('T')[0];
+                item.payment_mode = params[2] || 'UPI';
                 item.reference_no = params[3];
                 item.status = params[4];
-                item.notes = params[5];
-                // Persist to Supabase
+                item.notes = params[5] || '';
+                if (params.length >= 11) {
+                  item.proof_image_data = params[6] || item.proof_image_data;
+                  item.bank_name = params[7] || item.bank_name;
+                  item.cheque_no = params[8] || item.cheque_no;
+                  item.cheque_date = params[9] || item.cheque_date;
+                }
                 supabase.from('monthly_payments').update({
-                  amount_paid: item.amount_paid, payment_date: item.payment_date,
-                  payment_mode: item.payment_mode, reference_no: item.reference_no,
-                  status: item.status, notes: item.notes
-                }).eq('id', item.id).then(r => { if(r.error) console.error('Supabase payment update:', r.error); });
+                  amount_paid: item.amount_paid,
+                  payment_date: item.payment_date,
+                  payment_mode: item.payment_mode,
+                  reference_no: item.reference_no,
+                  status: item.status,
+                  notes: item.notes,
+                  bank_name: item.bank_name,
+                  cheque_no: item.cheque_no,
+                  cheque_date: item.cheque_date
+                }).eq('id', item.id).then(r => { if(r.error) console.error('Supabase payment update error:', r.error); });
               }
               return { changes: 1 };
             }
@@ -608,10 +745,83 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
               supabase.from('chit_schemes').delete().eq('id', schId).then(r => { if(r.error) console.error('Supabase scheme delete:', r.error); });
               return { changes: 1 };
             }
+            if (cleanSql.includes('DELETE FROM auctions WHERE id = ?')) {
+              const aucId = Number(params[0]);
+              memoryStore.auctions = memoryStore.auctions.filter(a => a && a.id !== aucId && String(a.id) !== String(aucId));
+              supabase.from('auctions').delete().eq('id', aucId).then(r => { if(r.error) console.error('Supabase auction delete:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('DELETE FROM dividends WHERE auction_id = ?')) {
+              const aucId = Number(params[0]);
+              memoryStore.dividends = memoryStore.dividends.filter(d => d && d.auction_id !== aucId && String(d.auction_id) !== String(aucId));
+              supabase.from('dividends').delete().eq('auction_id', aucId).then(r => { if(r.error) console.error('Supabase dividend delete:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('DELETE FROM monthly_payments WHERE scheme_id = ? AND month_number = ?')) {
+              const schId = Number(params[0]);
+              const mNum = Number(params[1]);
+              memoryStore.monthly_payments = memoryStore.monthly_payments.filter(p => !(p && (p.scheme_id === schId || String(p.scheme_id) === String(schId)) && p.month_number === mNum));
+              supabase.from('monthly_payments').delete().eq('scheme_id', schId).eq('month_number', mNum).then(r => { if(r.error) console.error('Supabase payment delete:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('UPDATE auctions')) {
+              const aucId = params[params.length - 1];
+              const item = memoryStore.auctions.find(a => a.id === Number(aucId) || String(a.id) === String(aucId));
+              if (item) {
+                if (cleanSql.includes('dividend_per_member')) {
+                  item.dividend_per_member = params[0];
+                  item.next_month_payable = params[1];
+                  supabase.from('auctions').update({ dividend_per_member: item.dividend_per_member, next_month_payable: item.next_month_payable }).eq('id', item.id).then(r => { if(r.error) console.error('Supabase auction update:', r.error); });
+                } else if (params.length >= 10) {
+                  item.winning_member_id = params[0];
+                  item.winning_ticket_number = params[1];
+                  item.winning_bid_discount = params[2];
+                  item.foreman_commission = params[3];
+                  item.winner_payout = params[4];
+                  item.dividend_pool = params[5];
+                  item.dividend_per_member = params[6];
+                  item.next_month_payable = params[7];
+                  item.auction_date = params[8];
+                  item.notes = params[9];
+                  supabase.from('auctions').update({
+                    winning_member_id: item.winning_member_id,
+                    winning_ticket_number: item.winning_ticket_number,
+                    winning_bid_discount: item.winning_bid_discount,
+                    foreman_commission: item.foreman_commission,
+                    winner_payout: item.winner_payout,
+                    dividend_pool: item.dividend_pool,
+                    dividend_per_member: item.dividend_per_member,
+                    next_month_payable: item.next_month_payable,
+                    auction_date: item.auction_date,
+                    notes: item.notes
+                  }).eq('id', item.id).then(r => { if(r.error) console.error('Supabase auction update:', r.error); });
+                }
+              }
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('UPDATE dividends')) {
+              const aucId = Number(params[1]);
+              const divAmt = params[0];
+              memoryStore.dividends.filter(d => d && (d.auction_id === aucId || String(d.auction_id) === String(aucId))).forEach(d => { d.dividend_amount = divAmt; });
+              supabase.from('dividends').update({ dividend_amount: divAmt }).eq('auction_id', aucId).then(r => { if(r.error) console.error('Supabase dividend update:', r.error); });
+              return { changes: 1 };
+            }
+            if (cleanSql.includes('UPDATE monthly_payments') && cleanSql.includes('WHERE scheme_id = ? AND month_number = ?')) {
+              const divApp = params[0];
+              const netDue = params[1];
+              const schId = Number(params[2]);
+              const mNum = Number(params[3]);
+              memoryStore.monthly_payments.filter(p => p && (p.scheme_id === schId || String(p.scheme_id) === String(schId)) && p.month_number === mNum).forEach(p => {
+                p.dividend_applied = divApp;
+                p.net_amount_due = netDue;
+              });
+              supabase.from('monthly_payments').update({ dividend_applied: divApp, net_amount_due: netDue }).eq('scheme_id', schId).eq('month_number', mNum).then(r => { if(r.error) console.error('Supabase payment update:', r.error); });
+              return { changes: 1 };
+            }
             if (cleanSql.includes('DELETE FROM chit_enrollments')) {
               const enrollId = params[0];
-              memoryStore.chit_enrollments = memoryStore.chit_enrollments.filter(e => e && e.id !== Number(enrollId));
-              supabase.from('chit_enrollments').delete().eq('id', Number(enrollId)).then(r => { if(r.error) console.error('Supabase enrollment delete:', r.error); });
+              memoryStore.chit_enrollments = memoryStore.chit_enrollments.filter(e => e && e.id !== Number(enrollId) && String(e.id) !== String(enrollId));
+              supabase.from('chit_enrollments').delete().eq('id', Number(enrollId) || enrollId).then(r => { if(r.error) console.error('Supabase enrollment delete:', r.error); });
               return { changes: 1 };
             }
           } catch (e) {
