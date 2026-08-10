@@ -5,31 +5,11 @@ const bcrypt = require('bcryptjs');
 let db;
 let isNative = false;
 
-// Force JS engine if running in Vercel or AWS Lambda environment
-const isServerless = Boolean(
-  process.env.VERCEL ||
-  process.env.AWS_LAMBDA_FUNCTION_NAME ||
-  process.env.VERCEL_ENV
-);
-
-if (!isServerless) {
-  try {
-    const Database = eval("require")('better-sqlite3');
-    const dbPath = path.join(__dirname, 'balaji_chitfund.db');
-    db = new Database(dbPath, { verbose: null });
-    db.pragma('foreign_keys = ON');
-    isNative = true;
-    console.log('Native SQLite DB initialized successfully.');
-  } catch (error) {
-    console.warn('Native better-sqlite3 not loadable, switching to JS Relational Engine:', error.message);
-    isNative = false;
-  }
-}
-
 const supabase = require('./supabase');
 
-if (!isNative) {
-  console.log('Running JS Relational Engine with Supabase Cloud DB Persistence for Vercel deployment.');
+// Shared JS Relational Engine with Supabase Cloud DB Persistence for both Localhost & Vercel
+isNative = false;
+console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB (Localhost & Vercel synchronized).');
 
   const memoryStore = {
     users: [],
@@ -47,6 +27,8 @@ if (!isNative) {
     users: 1, members: 1, kyc_documents: 1, chit_schemes: 1,
     chit_enrollments: 1, auctions: 1, monthly_payments: 1, dividends: 1, audit_logs: 1
   };
+
+  let lastSyncTime = 0;
 
   async function syncFromSupabase() {
     try {
@@ -90,19 +72,23 @@ if (!isNative) {
           autoId[tbl] = max + 1;
         }
       });
+      lastSyncTime = Date.now();
       console.log('Successfully synced data from Supabase Cloud DB!');
     } catch (e) {
-      console.warn('Supabase initial sync warning:', e.message);
+      console.warn('Supabase sync warning:', e.message);
     }
   }
 
-  // Trigger sync on serverless cold start
+  // Trigger sync on cold start
   syncFromSupabase();
 
   db = {
     exec: () => {},
     pragma: () => {},
     prepare: (sql) => {
+      if (Date.now() - lastSyncTime > 3000) {
+        syncFromSupabase();
+      }
       const cleanSql = String(sql || '').trim();
       return {
         get: (...params) => {
