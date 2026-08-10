@@ -16,6 +16,9 @@ server/uploads/kyc/*
 
 # Environment variables & secrets
 .env
+*.env
+client/.env
+server/.env
 client/.env.local
 
 # System & Editor files
