@@ -77,14 +77,14 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
         memoryStore.users.push(defaultAdminUser);
       }
 
-      if (members && Array.isArray(members) && members.length > 0) memoryStore.members = members;
-      if (kycDocs && Array.isArray(kycDocs) && kycDocs.length > 0) memoryStore.kyc_documents = kycDocs;
-      if (schemes && Array.isArray(schemes) && schemes.length > 0) memoryStore.chit_schemes = schemes;
-      if (enrollments && Array.isArray(enrollments) && enrollments.length > 0) memoryStore.chit_enrollments = enrollments;
-      if (auctions && Array.isArray(auctions) && auctions.length > 0) memoryStore.auctions = auctions;
-      if (payments && Array.isArray(payments) && payments.length > 0) memoryStore.monthly_payments = payments;
-      if (dividends && Array.isArray(dividends) && dividends.length > 0) memoryStore.dividends = dividends;
-      if (auditLogs && Array.isArray(auditLogs) && auditLogs.length > 0) memoryStore.audit_logs = auditLogs;
+      if (members && Array.isArray(members)) memoryStore.members = members;
+      if (kycDocs && Array.isArray(kycDocs)) memoryStore.kyc_documents = kycDocs;
+      if (schemes && Array.isArray(schemes)) memoryStore.chit_schemes = schemes;
+      if (enrollments && Array.isArray(enrollments)) memoryStore.chit_enrollments = enrollments;
+      if (auctions && Array.isArray(auctions)) memoryStore.auctions = auctions;
+      if (payments && Array.isArray(payments)) memoryStore.monthly_payments = payments;
+      if (dividends && Array.isArray(dividends)) memoryStore.dividends = dividends;
+      if (auditLogs && Array.isArray(auditLogs)) memoryStore.audit_logs = auditLogs;
 
       // Update max autoId counters
       const tables = ['users', 'members', 'kyc_documents', 'chit_schemes', 'chit_enrollments', 'auctions', 'monthly_payments', 'dividends', 'audit_logs'];
@@ -560,8 +560,6 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
     },
     transaction: (fn) => fn
   };
-
-  seedMemoryDB(db);
 
 function seedMemoryDB(database) {
   try {
