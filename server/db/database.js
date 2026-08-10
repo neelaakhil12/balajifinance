@@ -626,55 +626,11 @@ console.log('Running Unified JS Relational Engine connected to Supabase Cloud DB
 
 function seedMemoryDB(database) {
   try {
+    // Only seed the admin user — no mock data
     const now = new Date().toISOString();
     const adminPasswordHash = bcrypt.hashSync('admin123', 10);
     database.prepare('INSERT INTO users').run('Admin Staff', 'admin@balajichit.com', adminPasswordHash, 'admin', now);
-
-    const sampleMembers = [
-      { name: 'Rajesh Kumar', email: 'rajesh.k@gmail.com', phone1: '9845012345', phone2: '9845099991', aadhaar: '458912348901' },
-      { name: 'Priya Sundaram', email: 'priya.s@yahoo.com', phone1: '9731234567', phone2: '', aadhaar: '891234567890' },
-      { name: 'Ramesh Verma', email: 'ramesh.verma@hotmail.com', phone1: '9880123456', phone2: '9880199992', aadhaar: '345678901234' },
-      { name: 'Lakshmi Narayanan', email: 'lakshmi.n@outlook.com', phone1: '9900234567', phone2: '', aadhaar: '567890123456' },
-      { name: 'Suresh Babu', email: 'suresh.b@gmail.com', phone1: '9844345678', phone2: '9844399993', aadhaar: '678901234567' },
-      { name: 'Kavitha Reddy', email: 'kavitha.r@gmail.com', phone1: '9916456789', phone2: '', aadhaar: '789012345678' },
-      { name: 'Venkatesh Rao', email: 'venkatesh.rao@gmail.com', phone1: '9448567890', phone2: '9448599994', aadhaar: '901234567890' },
-      { name: 'Anitha Sharma', email: 'anitha.s@gmail.com', phone1: '9845678901', phone2: '', aadhaar: '123456789012' },
-      { name: 'Vijay Anand', email: 'vijay.anand@yahoo.com', phone1: '9739789012', phone2: '9739799995', aadhaar: '234567890123' },
-      { name: 'Deepa Krishnan', email: 'deepa.k@gmail.com', phone1: '9886890123', phone2: '', aadhaar: '432109876543' },
-      { name: 'Manoj Patel', email: 'manoj.patel@gmail.com', phone1: '9901901234', phone2: '9901999996', aadhaar: '543210987654' },
-      { name: 'Sunitha Roy', email: 'sunitha.roy@gmail.com', phone1: '9845019876', phone2: '', aadhaar: '654321098765' },
-      { name: 'Karthik Subramanian', email: 'karthik.sub@gmail.com', phone1: '9731239876', phone2: '9731299997', aadhaar: '765432109876' },
-      { name: 'Meena Kumari', email: 'meena.k@yahoo.com', phone1: '9880129876', phone2: '', aadhaar: '876543210987' },
-      { name: 'Ganesh Iyer', email: 'ganesh.iyer@gmail.com', phone1: '9900239876', phone2: '9900299998', aadhaar: '987654321098' },
-      { name: 'Swathi Menon', email: 'swathi.m@outlook.com', phone1: '9844349876', phone2: '', aadhaar: '109876543210' },
-      { name: 'Arun Prasad', email: 'arun.prasad@gmail.com', phone1: '9916459876', phone2: '9916499999', aadhaar: '210987654321' },
-      { name: 'Bhavana Hegde', email: 'bhavana.h@gmail.com', phone1: '9448569876', phone2: '', aadhaar: '321098765432' },
-      { name: 'Sanjay Gupta', email: 'sanjay.g@gmail.com', phone1: '9845679876', phone2: '9845699900', aadhaar: '432109876541' },
-      { name: 'Nandini Das', email: 'nandini.d@yahoo.com', phone1: '9739789876', phone2: '', aadhaar: '543210987652' }
-    ];
-
-    sampleMembers.forEach((m, idx) => {
-      database.prepare('INSERT INTO members').run(`BSF-MBR-${1001 + idx}`, m.name, m.email, m.phone1, m.phone2, m.aadhaar, 'Verified', 'Active', now, now);
-    });
-
-    database.prepare('INSERT INTO chit_schemes').run('BSF-SCH-1001', '₹1,00,000 Chit Scheme', 100000, 20, 20, 5000, 5.0, 5000, '2026-01-01', '2027-08-31', now);
-
-    for (let i = 1; i <= 20; i++) {
-      database.prepare('INSERT INTO chit_enrollments').run(1, i, i, now);
-    }
-
-    database.prepare('INSERT INTO auctions').run(1, 1, '2026-01-15', 3, 15000, 5000, 85000, 10000, 500, 4500, 'First month auction successfully completed.', now);
-
-    for (let mId = 1; mId <= 20; mId++) {
-      database.prepare('INSERT INTO dividends').run(1, 1, mId, 1, 500, now);
-      let amountPaid = 4500;
-      let status = 'Paid';
-      if (mId === 18 || mId === 19) { amountPaid = 0; status = 'Pending'; }
-      else if (mId === 20) { amountPaid = 2500; status = 'Partially Paid'; }
-      database.prepare('INSERT INTO monthly_payments').run(1, mId, 1, 5000, 500, 4500, amountPaid, status, 'Month 1 Contribution', now);
-    }
-
-    database.prepare('INSERT INTO audit_logs').run(1, 'Admin Staff', 'SYSTEM_INITIALIZED', 'Database', 'Initial database seed complete.', now);
+    console.log('Database initialized with admin user only. Ready for real data.');
   } catch (e) {
     console.error('Seed memory DB error:', e);
   }

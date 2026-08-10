@@ -87,28 +87,38 @@ export default function MembersPage() {
 
   const handleDeactivate = async () => {
     if (!deleteModalMember) return;
+    const deletedId = deleteModalMember.id;
+    // Immediately remove from UI (optimistic update)
+    setMembers(prev => prev.filter(m => m.id !== deletedId));
+    setDeleteModalMember(null);
     try {
-      const res = await API.delete(`/members/${deleteModalMember.id}`);
+      const res = await API.delete(`/members/${deletedId}`);
       if (res.data.success) {
-        setToast({ type: 'success', message: res.data.message || `Member ${deleteModalMember.name} permanently deleted successfully.` });
-        setDeleteModalMember(null);
-        fetchMembers(pagination.page);
+        setToast({ type: 'success', message: res.data.message || `Member deleted successfully.` });
       }
+      // Refresh in background to sync true state
+      fetchMembers(pagination.page);
     } catch (err) {
+      // Restore if delete failed
+      fetchMembers(pagination.page);
       setToast({ type: 'error', message: 'Failed to delete member record.' });
     }
   };
 
   const handleUpdateMember = async (e) => {
     e.preventDefault();
+    const updatedMember = { ...editModalMember };
+    // Immediately update UI (optimistic update)
+    setMembers(prev => prev.map(m => m.id === updatedMember.id ? { ...m, ...updatedMember } : m));
+    setEditModalMember(null);
     try {
-      const res = await API.put(`/members/${editModalMember.id}`, editModalMember);
+      const res = await API.put(`/members/${updatedMember.id}`, updatedMember);
       if (res.data.success) {
         setToast({ type: 'success', message: 'Member details updated successfully.' });
-        setEditModalMember(null);
-        fetchMembers(pagination.page);
       }
+      fetchMembers(pagination.page);
     } catch (err) {
+      fetchMembers(pagination.page);
       setToast({ type: 'error', message: 'Failed to update member.' });
     }
   };
